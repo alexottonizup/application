@@ -23,6 +23,7 @@ jobs:
       - name: Get next version with semantic-release
         id: semantic
         env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           npx semantic-release --dry-run > output.log || true
