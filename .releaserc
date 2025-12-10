@@ -1,5 +1,6 @@
 {
   "branches": ["main", "develop", {"name": "release/*"}, {"name": "feature/*"}],
+  "repositoryUrl": "https://github.com/alexottonizup/application",
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
