@@ -1,27 +1,20 @@
-name: Version and PR (develop → release)
+name: Auto Version & PR (develop to release)
 
 on:
   push:
     branches:
       - develop
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # Busca todo o histórico
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
@@ -29,43 +22,70 @@ jobs:
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
-      - name: Run semantic-release (dry-run)
-        run: npx semantic-release --dry-run > output.log 2>&1 || true
+      - name: Get next version with semantic-release
+        id: semantic
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract version
-        id: version
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
+          npx semantic-release --dry-run > output.log || true
           VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
-          if [ -z "$VERSION" ]; then
-            echo "⚠️ No version found, using 1.0.0 as default"
-            VERSION="1.0.0"
-          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Version: $VERSION"
 
-      - name: Create or Update Pull Request
+      - name: Check if there are commits to release
+        id: check_commits
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          # Busca as branches remotas
+          git fetch origin develop:develop
+          git fetch origin release:release || git checkout -b release
+          
+          # Verifica se há commits diferentes
+          COMMITS=$(git log release..develop --oneline | wc -l)
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          
+          if [ "$COMMITS" -eq 0 ]; then
+            echo "⚠️ No commits to release. Skipping PR creation."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Found $COMMITS commits to release."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request to release
+        if: steps.check_commits.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          VERSION="${{ steps.semantic.outputs.version }}"
           BRANCH="develop"
           
+          # Verifica se PR já existe
           PR_NUMBER=$(gh pr list --head "$BRANCH" --base release --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
             gh pr create \
-              --title "Release v${VERSION}-RC" \
-              --body "## 🎯 Automated PR - Develop to Release
+              --title "Release v$VERSION-RC" \
+              --body "## 🚀 Automated PR - Develop to Release
           
-          **Version:** \`${VERSION}-RC\`
-          **Branch:** \`${BRANCH}\`
-          **Target:** \`release\` (Homologation)
-          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
+          **Version:** \`$VERSION-RC\`
+          **Branch:** \`$BRANCH\`
+          **Target:** \`release\`
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ---
+          
+          ### 📋 Changes
+          This PR delivers the development branch to the release candidate environment.
+          
+          ### ✅ Checklist
+          - [ ] Code reviewed
+          - [ ] Tests passing
+          - [ ] Documentation updated" \
               --base release \
-              --head "$BRANCH"
+              --head "$BRANCH" || echo "⚠️ PR creation failed"
           else
-            echo "🔄 PR #${PR_NUMBER} already exists"
+            echo "🔄 PR #$PR_NUMBER already exists, updating..."
+            gh pr edit "$PR_NUMBER" \
+              --title "Release v$VERSION-RC" || echo "⚠️ PR update failed"
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
