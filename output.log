@@ -1,0 +1,40 @@
+[2:21:46 PM] [semantic-release] › ℹ  Running semantic-release version 22.0.12
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "verifyConditions" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "analyzeCommits" from "@semantic-release/commit-analyzer"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "analyzeCommits" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "verifyRelease" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "generateNotes" from "@semantic-release/release-notes-generator"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "generateNotes" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "prepare" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "publish" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "addChannel" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "success" from "@semantic-release/exec"
+[2:21:46 PM] [semantic-release] › ✔  Loaded plugin "fail" from "@semantic-release/exec"
+[2:21:47 PM] [semantic-release] › ⚠  Run automated release from branch feature/card-1111 on repository https://x-access-token:${GH_TOKEN}@github.com/alexottonizup/application.git in dry-run mode
+[2:21:48 PM] [semantic-release] › ✘  The command "git push --dry-run --no-verify https://x-access-token:%24%7BGH_TOKEN%7D@github.com/alexottonizup/application.git HEAD:feature/card-1111" failed with the error message remote: Permission to alexottonizup/application.git denied to github-actions[bot].
+fatal: unable to access 'https://github.com/alexottonizup/application.git/': The requested URL returned error: 403.
+[2:21:48 PM] [semantic-release] › ⚠  Skip step "fail" of plugin "@semantic-release/exec" in dry-run mode
+[2:21:48 PM] [semantic-release] › ✘  EGITNOPERMISSION Cannot push to the Git repository.
+semantic-release cannot push the version tag to the branch feature/card-1111 on the remote Git repository with URL https://x-access-token:%24%7BGH_TOKEN%7D@github.com/alexottonizup/application.git.
+
+This can be caused by:
+
+    * a misconfiguration of the repositoryUrl (https://github.com/semantic-release/semantic-release/blob/master/docs/usage/configuration.md#repositoryurl) option
+    * the repository being unavailable
+    * or missing push permission for the user configured via the Git credentials on your CI environment (https://github.com/semantic-release/semantic-release/blob/master/docs/usage/ci-configuration.md#authentication)
+
+SemanticReleaseError: Cannot push to the Git repository.
+    at default [90m(file:///home/runner/work/application/application/[39mnode_modules/[4msemantic-release[24m/lib/get-error.js:6:10[90m)[39m
+    at run [90m(file:///home/runner/work/application/application/[39mnode_modules/[4msemantic-release[24m/index.js:101:11[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async Module.default [90m(file:///home/runner/work/application/application/[39mnode_modules/[4msemantic-release[24m/index.js:275:22[90m)[39m
+    at async default [90m(file:///home/runner/work/application/application/[39mnode_modules/[4msemantic-release[24m/cli.js:55:5[90m)[39m {
+  code: [32m'EGITNOPERMISSION'[39m,
+  details: [32m'**semantic-release** cannot push the version tag to the branch `feature/card-1111` on the remote Git repository with URL `https://x-access-token:%24%7BGH_TOKEN%7D@github.com/alexottonizup/application.git`.\n'[39m +
+    [32m'\n'[39m +
+    [32m'This can be caused by:\n'[39m +
+    [32m' - a misconfiguration of the [repositoryUrl](https://github.com/semantic-release/semantic-release/blob/master/docs/usage/configuration.md#repositoryurl) option\n'[39m +
+    [32m' - the repository being unavailable\n'[39m +
+    [32m' - or missing push permission for the user configured via the [Git credentials on your CI environment](https://github.com/semantic-release/semantic-release/blob/master/docs/usage/ci-configuration.md#authentication)'[39m,
+  semanticRelease: [33mtrue[39m
+}
