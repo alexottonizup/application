@@ -1,6 +1,7 @@
 {
   "branches": ["main", "feature/*"],
-  "repositoryUrl": "https://x-access-token:${GH_TOKEN}@github.com/alexottonizup/application.git",
+  "ci": false,
+  "dryRun": true,
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
