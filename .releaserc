@@ -1,8 +1,14 @@
 {
-  "branches": ["main", "develop", {"name": "release/*"}, {"name": "feature/*"}],
+  "branches": ["main", "feature/*"],
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
-    "@semantic-release/github"
-  ]
+    [
+      "@semantic-release/exec",
+      {
+        "verifyReleaseCmd": "echo ${nextRelease.version}"
+      }
+    ]
+  ],
+  "repositoryUrl": "https://github.com/alexottonizup/application.git"
 }
