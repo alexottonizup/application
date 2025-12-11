@@ -31,22 +31,18 @@ jobs:
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
-      - name: Configure Git credentials
+      - name: Configure Git with PAT
         run: |
           git config --global credential.helper store
           echo "https://x-access-token:${GH_TOKEN}@github.com" > ~/.git-credentials
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Debug Git remote
-        run: |
-          git remote -v
-          git config --list | grep credential
-
+      
       - name: Get next version with semantic-release
         id: semantic
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # ← Use GH_TOKEN, não GITHUB_TOKEN
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_TOKEN: ""  # ← Desabilita o token padrão
         run: |
           npx semantic-release --dry-run > output.log
