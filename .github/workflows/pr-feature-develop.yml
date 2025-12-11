@@ -5,6 +5,11 @@ on:
     branches:
       - 'feature/**'
 
+# ✅ Garante que apenas 1 workflow rode por vez na mesma branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pull-requests: write
