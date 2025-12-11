@@ -17,6 +17,17 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Check GH_TOKEN
+        run: 'echo "Token length: ${#GH_TOKEN}"'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Set remote with PAT
+        run: |
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
