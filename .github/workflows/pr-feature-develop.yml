@@ -38,7 +38,14 @@ jobs:
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      
+
+      - name: Test Git push
+        run: |
+          git config --list | grep credential
+          git ls-remote --heads origin
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
       - name: Get next version with semantic-release
         id: semantic
         env:
