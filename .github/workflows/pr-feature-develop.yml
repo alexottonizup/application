@@ -24,12 +24,6 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Configure Git authentication
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git
-
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/commit-analyzer @semantic-release/release-notes-generator
 
@@ -46,6 +40,11 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           cat output.log
+
+      - name: Clean temporary files
+        run: |
+          git checkout -- .
+          git clean -fd
 
       - name: Create Pull Request to develop
         uses: peter-evans/create-pull-request@v5
