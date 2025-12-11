@@ -2,11 +2,8 @@ name: Auto Version & PR (develop to release)
 
 on:
   push:
-    branches: [develop]
-
-permissions:
-  contents: write
-  pull-requests: write
+    branches:
+      - develop
 
 jobs:
   version-and-pr:
@@ -15,8 +12,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # ✅ Busca todo o histórico
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # Busca todo o histórico
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -29,8 +25,8 @@ jobs:
       - name: Get next version with semantic-release
         id: semantic
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           npx semantic-release --dry-run > output.log || true
           VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
@@ -39,17 +35,12 @@ jobs:
       - name: Check if there are commits to release
         id: check_commits
         run: |
-          # ✅ Fetch sem sobrescrever branches
-          git fetch origin develop
-          git fetch origin release || echo "Release branch doesn't exist yet"
+          # Busca as branches remotas
+          git fetch origin develop:develop
+          git fetch origin release:release || git checkout -b release
           
-          # ✅ Verifica se release existe
-          if git show-ref --verify --quiet refs/remotes/origin/release; then
-            COMMITS=$(git log origin/release..origin/develop --oneline | wc -l)
-          else
-            COMMITS=$(git log origin/develop --oneline | wc -l)
-          fi
-          
+          # Verifica se há commits diferentes
+          COMMITS=$(git log release..develop --oneline | wc -l)
           echo "commits=$COMMITS" >> $GITHUB_OUTPUT
           
           if [ "$COMMITS" -eq 0 ]; then
@@ -63,7 +54,7 @@ jobs:
       - name: Create Pull Request to release
         if: steps.check_commits.outputs.skip == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           VERSION="${{ steps.semantic.outputs.version }}"
           BRANCH="develop"
@@ -78,7 +69,9 @@ jobs:
               --body "## 🚀 Automated PR - Develop to Release
           
           **Version:** \`$VERSION-RC\`
-          **Commits:** ${{ steps.check_commits.outputs.commits }}
+          **Branch:** \`$BRANCH\`
+          **Target:** \`release\`
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
           ---
           
