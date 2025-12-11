@@ -12,7 +12,6 @@ permissions:
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
-    # ✅ SÓ RODA SE ESTIVER EM RELEASE
     if: github.ref == 'refs/heads/release'
     
     steps:
@@ -64,8 +63,7 @@ jobs:
           **Target:** \`main\` (Production)
           **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
               --base main \
-              --head "$BRANCH" \
-              --label "production,automated" || echo "⚠️ PR creation failed"
+              --head "$BRANCH"
           else
             echo "🔄 PR #${PR_NUMBER} already exists"
           fi

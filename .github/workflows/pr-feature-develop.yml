@@ -12,7 +12,6 @@ permissions:
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
-    # ✅ SÓ RODA SE ESTIVER EM FEATURE BRANCH
     if: startsWith(github.ref, 'refs/heads/feature/')
     
     steps:
@@ -75,12 +74,11 @@ jobs:
           - [ ] Tests passing
           - [ ] Documentation updated" \
               --base develop \
-              --head "$BRANCH" \
-              --label "feature,automated" || echo "⚠️ PR creation failed"
+              --head "$BRANCH"
           else
             echo "🔄 PR #${PR_NUMBER} already exists, updating..."
             gh pr edit "$PR_NUMBER" \
-              --title "Feature v${VERSION}-SNAPSHOT" || echo "⚠️ PR update failed"
+              --title "Feature v${VERSION}-SNAPSHOT"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
