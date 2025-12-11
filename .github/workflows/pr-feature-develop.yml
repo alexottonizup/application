@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - 'feature/**'
+    paths-ignore:
+      - '.github/workflows/pr-develop-release.yml'
+      - '.github/workflows/pr-release-main.yml'
 
 permissions:
   contents: write
@@ -19,20 +22,20 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
-      
+
       - name: Run semantic-release (dry-run)
-        run: npx semantic-release --dry-run > output.log
+        run: npx semantic-release --dry-run > output.log 2>&1 || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Extract version
         id: version
         run: |
@@ -43,14 +46,14 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Version: $VERSION"
-      
+
       - name: Create or Update Pull Request
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="${{ github.ref_name }}"
           
           # Verifica se PR já existe
-          PR_NUMBER=$(gh pr list --head "$BRANCH" --base develop --json number --jq '.[0].number' || echo "")
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --base develop --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
@@ -74,9 +77,9 @@ This PR delivers the feature branch to the development environment.
 - [ ] Documentation updated" \
               --base develop \
               --head "$BRANCH" \
-              --label "feature,automated" || echo "⚠️ PR creation failed, but continuing..."
+              --label "feature,automated" || echo "⚠️ PR creation failed"
           else
-            echo "🔄 Updating existing PR #${PR_NUMBER}..."
+            echo "🔄 PR #${PR_NUMBER} already exists, updating..."
             gh pr edit "$PR_NUMBER" \
               --title "Feature v${VERSION}-SNAPSHOT" \
               --body "## 🚀 Automated PR - Feature to Develop
@@ -94,7 +97,7 @@ This PR delivers the feature branch to the development environment.
 ### ✅ Checklist
 - [ ] Code reviewed
 - [ ] Tests passing
-- [ ] Documentation updated" || echo "⚠️ PR update failed, but continuing..."
+- [ ] Documentation updated" || echo "⚠️ PR update failed"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

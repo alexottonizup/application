@@ -19,20 +19,20 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
-      
+
       - name: Run semantic-release (dry-run)
-        run: npx semantic-release --dry-run > output.log
+        run: npx semantic-release --dry-run > output.log 2>&1 || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Extract version
         id: version
         run: |
@@ -43,14 +43,14 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Version: $VERSION"
-      
+
       - name: Create or Update Pull Request
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="release"
           
           # Verifica se PR já existe
-          PR_NUMBER=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' || echo "")
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
@@ -74,43 +74,14 @@ This PR delivers the release version to the production environment.
 - [ ] Change management approval
 - [ ] Rollback plan prepared
 - [ ] Monitoring alerts configured
-- [ ] Documentation updated
-
-### 🔒 Deployment Notes
-- **Deployment Window:** [Specify date/time]
-- **Rollback Strategy:** [Describe rollback plan]
-- **Impact:** [Describe expected impact]" \
+- [ ] Documentation updated" \
               --base main \
               --head "$BRANCH" \
-              --label "production,automated,critical" || echo "⚠️ PR creation failed, but continuing..."
+              --label "production,automated,critical" || echo "⚠️ PR creation failed"
           else
-            echo "🔄 Updating existing PR #${PR_NUMBER}..."
+            echo "🔄 PR #${PR_NUMBER} already exists, updating..."
             gh pr edit "$PR_NUMBER" \
-              --title "Production Release v${VERSION}" \
-              --body "## 🚀 Automated PR - Release to Production
-
-**Version:** \`${VERSION}\`  
-**Branch:** \`${BRANCH}\`  
-**Target:** \`main\` (Production)  
-**Updated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Changes
-This PR delivers the release version to the production environment.
-
-### ✅ Production Checklist
-- [ ] Homologation tests completed
-- [ ] QA sign-off received
-- [ ] Change management approval
-- [ ] Rollback plan prepared
-- [ ] Monitoring alerts configured
-- [ ] Documentation updated
-
-### 🔒 Deployment Notes
-- **Deployment Window:** [Specify date/time]
-- **Rollback Strategy:** [Describe rollback plan]
-- **Impact:** [Describe expected impact]" || echo "⚠️ PR update failed, but continuing..."
+              --title "Production Release v${VERSION}" || echo "⚠️ PR update failed"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

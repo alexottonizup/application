@@ -19,20 +19,20 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
-      
+
       - name: Run semantic-release (dry-run)
-        run: npx semantic-release --dry-run > output.log
+        run: npx semantic-release --dry-run > output.log 2>&1 || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Extract version
         id: version
         run: |
@@ -43,22 +43,22 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Version: $VERSION"
-      
+
       - name: Create or Update Pull Request
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="develop"
           
           # Verifica se PR já existe
-          PR_NUMBER=$(gh pr list --head "$BRANCH" --base release --json number --jq '.[0].number' || echo "")
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --base release --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
             gh pr create \
-              --title "Release v${VERSION}-RELEASE" \
+              --title "Release v${VERSION}-RC" \
               --body "## 🎯 Automated PR - Develop to Release
 
-**Version:** \`${VERSION}-RELEASE\`  
+**Version:** \`${VERSION}-RC\`  
 **Branch:** \`${BRANCH}\`  
 **Target:** \`release\` (Homologation)  
 **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
@@ -75,28 +75,11 @@ This PR delivers the development version to the homologation environment.
 - [ ] Release notes prepared" \
               --base release \
               --head "$BRANCH" \
-              --label "release,automated,homologation" || echo "⚠️ PR creation failed, but continuing..."
+              --label "release,automated,homologation" || echo "⚠️ PR creation failed"
           else
-            echo "🔄 Updating existing PR #${PR_NUMBER}..."
+            echo "🔄 PR #${PR_NUMBER} already exists, updating..."
             gh pr edit "$PR_NUMBER" \
-              --title "Release v${VERSION}-RELEASE" \
-              --body "## 🎯 Automated PR - Develop to Release
-
-**Version:** \`${VERSION}-RELEASE\`  
-**Branch:** \`${BRANCH}\`  
-**Target:** \`release\` (Homologation)  
-**Updated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Changes
-This PR delivers the development version to the homologation environment.
-
-### ✅ Pre-Release Checklist
-- [ ] All features tested in development
-- [ ] Integration tests passing
-- [ ] QA approval required
-- [ ] Release notes prepared" || echo "⚠️ PR update failed, but continuing..."
+              --title "Release v${VERSION}-RC" || echo "⚠️ PR update failed"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
