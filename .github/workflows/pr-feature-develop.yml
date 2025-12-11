@@ -38,6 +38,9 @@ jobs:
           if [ -z "$VERSION" ]; then
             VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
           fi
+          if [ -z "$VERSION" ]; then
+            VERSION="0.1.0"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           cat output.log
 

@@ -1,23 +1,14 @@
 {
-  "branches": ["main", "feature/*"],
-  "ci": false,
-  "dryRun": true,
+  "branches": ["main", "develop", "feature/*"],
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/exec",
       {
-        "verifyConditionsCmd": "echo 'Skipping verify'",
-        "analyzeCommitsCmd": "echo 'Analyzing commits'",
-        "verifyReleaseCmd": "echo ${nextRelease.version}",
-        "generateNotesCmd": "echo 'Generating notes'",
-        "prepareCmd": "echo 'Preparing release'",
-        "publishCmd": "echo 'Publishing'",
-        "addChannelCmd": "echo 'Adding channel'",
-        "successCmd": "echo 'Success'",
-        "failCmd": "echo 'Failed'"
+        "verifyReleaseCmd": "echo ${nextRelease.version}"
       }
     ]
-  ]
+  ],
+  "repositoryUrl": "https://github.com/alexottonizup/application"
 }
