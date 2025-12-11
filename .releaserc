@@ -1,14 +1,22 @@
 {
   "branches": ["main", "feature/*"],
+  "repositoryUrl": "https://x-access-token:${GH_TOKEN}@github.com/alexottonizup/application.git",
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/exec",
       {
-        "verifyReleaseCmd": "echo ${nextRelease.version} > .version"
+        "verifyConditionsCmd": "echo 'Skipping verify'",
+        "analyzeCommitsCmd": "echo 'Analyzing commits'",
+        "verifyReleaseCmd": "echo ${nextRelease.version}",
+        "generateNotesCmd": "echo 'Generating notes'",
+        "prepareCmd": "echo 'Preparing release'",
+        "publishCmd": "echo 'Publishing'",
+        "addChannelCmd": "echo 'Adding channel'",
+        "successCmd": "echo 'Success'",
+        "failCmd": "echo 'Failed'"
       }
     ]
-  ],
-  "dryRun": true
+  ]
 }
