@@ -6,11 +6,9 @@
     [
       "@semantic-release/exec",
       {
-        "verifyReleaseCmd": "echo ${nextRelease.version}"
+        "verifyReleaseCmd": "echo ${nextRelease.version} > .version"
       }
     ]
   ],
-  "dryRun": true,
-  "ci": false,
-  "repositoryUrl": "https://github.com/alexottonizup/application.git"
+  "dryRun": true
 }
