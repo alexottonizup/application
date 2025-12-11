@@ -1,40 +1,116 @@
-name: Auto Version & PR (release to main)
+name: Version and PR (release → main)
 
 on:
   push:
     branches:
       - release
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Set up Node.js
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-
+      
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
-
-      - name: Get next version with semantic-release
-        id: semantic
+      
+      - name: Run semantic-release (dry-run)
+        run: npx semantic-release --dry-run > output.log
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract version
+        id: version
         run: |
-          npx semantic-release --dry-run > output.log
           VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
+          if [ -z "$VERSION" ]; then
+            echo "⚠️ No version found, using 1.0.0 as default"
+            VERSION="1.0.0"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+      
+      - name: Create or Update Pull Request
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="release"
+          
+          # Verifica se PR já existe
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' || echo "")
+          
+          if [ -z "$PR_NUMBER" ]; then
+            echo "✨ Creating new PR..."
+            gh pr create \
+              --title "Production Release v${VERSION}" \
+              --body "## 🚀 Automated PR - Release to Production
 
-      - name: Create Pull Request to main
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GH_TOKEN }}
-          commit-message: "chore(prod): prepare v${{ steps.semantic.outputs.version }}"
-          title: "Production Release v${{ steps.semantic.outputs.version }}"
-          body: "Automated PR to deliver production version ${{ steps.semantic.outputs.version }} to main"
-          base: main
-          branch: release
+**Version:** \`${VERSION}\`  
+**Branch:** \`${BRANCH}\`  
+**Target:** \`main\` (Production)  
+**Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+---
+
+### 📋 Changes
+This PR delivers the release version to the production environment.
+
+### ✅ Production Checklist
+- [ ] Homologation tests completed
+- [ ] QA sign-off received
+- [ ] Change management approval
+- [ ] Rollback plan prepared
+- [ ] Monitoring alerts configured
+- [ ] Documentation updated
+
+### 🔒 Deployment Notes
+- **Deployment Window:** [Specify date/time]
+- **Rollback Strategy:** [Describe rollback plan]
+- **Impact:** [Describe expected impact]" \
+              --base main \
+              --head "$BRANCH" \
+              --label "production,automated,critical" || echo "⚠️ PR creation failed, but continuing..."
+          else
+            echo "🔄 Updating existing PR #${PR_NUMBER}..."
+            gh pr edit "$PR_NUMBER" \
+              --title "Production Release v${VERSION}" \
+              --body "## 🚀 Automated PR - Release to Production
+
+**Version:** \`${VERSION}\`  
+**Branch:** \`${BRANCH}\`  
+**Target:** \`main\` (Production)  
+**Updated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+---
+
+### 📋 Changes
+This PR delivers the release version to the production environment.
+
+### ✅ Production Checklist
+- [ ] Homologation tests completed
+- [ ] QA sign-off received
+- [ ] Change management approval
+- [ ] Rollback plan prepared
+- [ ] Monitoring alerts configured
+- [ ] Documentation updated
+
+### 🔒 Deployment Notes
+- **Deployment Window:** [Specify date/time]
+- **Rollback Strategy:** [Describe rollback plan]
+- **Impact:** [Describe expected impact]" || echo "⚠️ PR update failed, but continuing..."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

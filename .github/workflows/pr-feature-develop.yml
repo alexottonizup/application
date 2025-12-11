@@ -1,73 +1,100 @@
-name: Version and PR
+name: Version and PR (feature → develop)
 
 on:
   push:
     branches:
-      - feature/**
+      - 'feature/**'
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
-      - uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: '18'
       
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
       
-      - name: Run semantic-release
+      - name: Run semantic-release (dry-run)
         run: npx semantic-release --dry-run > output.log
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Extract version
         id: version
         run: |
           VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
+          if [ -z "$VERSION" ]; then
+            echo "⚠️ No version found, using 1.0.0 as default"
+            VERSION="1.0.0"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
       
-      - name: Clean temporary files
+      - name: Create or Update Pull Request
         run: |
-          git checkout -- .
-          git clean -fd
-          rm -f output.log
-      
-      - name: Check if PR exists
-        id: check_pr
-        run: |
-          PR_EXISTS=$(gh pr list --head ${{ github.ref_name }} --base develop --json number --jq '.[0].number')
-          if [ -n "$PR_EXISTS" ]; then
-            echo "pr_exists=true" >> $GITHUB_OUTPUT
-            echo "PR #$PR_EXISTS already exists"
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="${{ github.ref_name }}"
+          
+          # Verifica se PR já existe
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --base develop --json number --jq '.[0].number' || echo "")
+          
+          if [ -z "$PR_NUMBER" ]; then
+            echo "✨ Creating new PR..."
+            gh pr create \
+              --title "Feature v${VERSION}-SNAPSHOT" \
+              --body "## 🚀 Automated PR - Feature to Develop
+
+**Version:** \`${VERSION}-SNAPSHOT\`  
+**Branch:** \`${BRANCH}\`  
+**Target:** \`develop\`  
+**Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+---
+
+### 📋 Changes
+This PR delivers the feature branch to the development environment.
+
+### ✅ Checklist
+- [ ] Code reviewed
+- [ ] Tests passing
+- [ ] Documentation updated" \
+              --base develop \
+              --head "$BRANCH" \
+              --label "feature,automated" || echo "⚠️ PR creation failed, but continuing..."
           else
-            echo "pr_exists=false" >> $GITHUB_OUTPUT
+            echo "🔄 Updating existing PR #${PR_NUMBER}..."
+            gh pr edit "$PR_NUMBER" \
+              --title "Feature v${VERSION}-SNAPSHOT" \
+              --body "## 🚀 Automated PR - Feature to Develop
+
+**Version:** \`${VERSION}-SNAPSHOT\`  
+**Branch:** \`${BRANCH}\`  
+**Target:** \`develop\`  
+**Updated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+---
+
+### 📋 Changes
+This PR delivers the feature branch to the development environment.
+
+### ✅ Checklist
+- [ ] Code reviewed
+- [ ] Tests passing
+- [ ] Documentation updated" || echo "⚠️ PR update failed, but continuing..."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Create Pull Request
-        if: steps.check_pr.outputs.pr_exists == 'false'
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore(feature): prepare v${{ steps.version.outputs.version }}-SNAPSHOT [skip ci]"
-          title: "Feature v${{ steps.version.outputs.version }}-SNAPSHOT"
-          body: "Automated PR to deliver feature version ${{ steps.version.outputs.version }}-SNAPSHOT to develop"
-          base: develop
-          branch: ${{ github.ref_name }}
-          committer: GitHub <noreply@github.com>
-          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
-          signoff: false
-          delete-branch: false
-          draft: false
