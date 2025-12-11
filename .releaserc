@@ -10,7 +10,7 @@
       }
     ]
   ],
-  "repositoryUrl": "https://x-access-token:${GH_TOKEN}@github.com/alexottonizup/application.git",
   "dryRun": true,
-  "ci": false
+  "ci": false,
+  "repositoryUrl": "https://github.com/alexottonizup/application.git"
 }
