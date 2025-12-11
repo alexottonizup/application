@@ -31,6 +31,13 @@ jobs:
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
+      - name: Configure Git credentials
+        run: |
+          git config --global credential.helper store
+          echo "https://x-access-token:${GH_TOKEN}@github.com" > ~/.git-credentials
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
       - name: Get next version with semantic-release
         id: semantic
         env:
