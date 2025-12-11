@@ -28,6 +28,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
+      - name: Verify Git remote
+        run: |
+          git remote -v
+          git config --list | grep -E "(credential|remote)"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
