@@ -12,6 +12,8 @@ permissions:
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
+    # ✅ SÓ RODA SE ESTIVER EM DEVELOP
+    if: github.ref == 'refs/heads/develop'
     
     steps:
       - name: Checkout code
@@ -49,7 +51,6 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="develop"
           
-          # Verifica se PR já existe
           PR_NUMBER=$(gh pr list --head "$BRANCH" --base release --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
@@ -57,29 +58,16 @@ jobs:
             gh pr create \
               --title "Release v${VERSION}-RC" \
               --body "## 🎯 Automated PR - Develop to Release
-
-**Version:** \`${VERSION}-RC\`  
-**Branch:** \`${BRANCH}\`  
-**Target:** \`release\` (Homologation)  
-**Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Changes
-This PR delivers the development version to the homologation environment.
-
-### ✅ Pre-Release Checklist
-- [ ] All features tested in development
-- [ ] Integration tests passing
-- [ ] QA approval required
-- [ ] Release notes prepared" \
+          
+          **Version:** \`${VERSION}-RC\`
+          **Branch:** \`${BRANCH}\`
+          **Target:** \`release\` (Homologation)
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
               --base release \
               --head "$BRANCH" \
-              --label "release,automated,homologation" || echo "⚠️ PR creation failed"
+              --label "release,automated" || echo "⚠️ PR creation failed"
           else
-            echo "🔄 PR #${PR_NUMBER} already exists, updating..."
-            gh pr edit "$PR_NUMBER" \
-              --title "Release v${VERSION}-RC" || echo "⚠️ PR update failed"
+            echo "🔄 PR #${PR_NUMBER} already exists"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - 'feature/**'
-    paths-ignore:
-      - '.github/workflows/pr-develop-release.yml'
-      - '.github/workflows/pr-release-main.yml'
 
 permissions:
   contents: write
@@ -15,6 +12,8 @@ permissions:
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
+    # ✅ SÓ RODA SE ESTIVER EM FEATURE BRANCH
+    if: startsWith(github.ref, 'refs/heads/feature/')
     
     steps:
       - name: Checkout code
@@ -60,44 +59,28 @@ jobs:
             gh pr create \
               --title "Feature v${VERSION}-SNAPSHOT" \
               --body "## 🚀 Automated PR - Feature to Develop
-
-**Version:** \`${VERSION}-SNAPSHOT\`  
-**Branch:** \`${BRANCH}\`  
-**Target:** \`develop\`  
-**Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Changes
-This PR delivers the feature branch to the development environment.
-
-### ✅ Checklist
-- [ ] Code reviewed
-- [ ] Tests passing
-- [ ] Documentation updated" \
+          
+          **Version:** \`${VERSION}-SNAPSHOT\`
+          **Branch:** \`${BRANCH}\`
+          **Target:** \`develop\`
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ---
+          
+          ### 📋 Changes
+          This PR delivers the feature branch to the development environment.
+          
+          ### ✅ Checklist
+          - [ ] Code reviewed
+          - [ ] Tests passing
+          - [ ] Documentation updated" \
               --base develop \
               --head "$BRANCH" \
               --label "feature,automated" || echo "⚠️ PR creation failed"
           else
             echo "🔄 PR #${PR_NUMBER} already exists, updating..."
             gh pr edit "$PR_NUMBER" \
-              --title "Feature v${VERSION}-SNAPSHOT" \
-              --body "## 🚀 Automated PR - Feature to Develop
-
-**Version:** \`${VERSION}-SNAPSHOT\`  
-**Branch:** \`${BRANCH}\`  
-**Target:** \`develop\`  
-**Updated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Changes
-This PR delivers the feature branch to the development environment.
-
-### ✅ Checklist
-- [ ] Code reviewed
-- [ ] Tests passing
-- [ ] Documentation updated" || echo "⚠️ PR update failed"
+              --title "Feature v${VERSION}-SNAPSHOT" || echo "⚠️ PR update failed"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

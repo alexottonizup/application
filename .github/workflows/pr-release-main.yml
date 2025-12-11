@@ -12,6 +12,8 @@ permissions:
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
+    # ✅ SÓ RODA SE ESTIVER EM RELEASE
+    if: github.ref == 'refs/heads/release'
     
     steps:
       - name: Checkout code
@@ -49,7 +51,6 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="release"
           
-          # Verifica se PR já existe
           PR_NUMBER=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
@@ -57,31 +58,16 @@ jobs:
             gh pr create \
               --title "Production Release v${VERSION}" \
               --body "## 🚀 Automated PR - Release to Production
-
-**Version:** \`${VERSION}\`  
-**Branch:** \`${BRANCH}\`  
-**Target:** \`main\` (Production)  
-**Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Changes
-This PR delivers the release version to the production environment.
-
-### ✅ Production Checklist
-- [ ] Homologation tests completed
-- [ ] QA sign-off received
-- [ ] Change management approval
-- [ ] Rollback plan prepared
-- [ ] Monitoring alerts configured
-- [ ] Documentation updated" \
+          
+          **Version:** \`${VERSION}\`
+          **Branch:** \`${BRANCH}\`
+          **Target:** \`main\` (Production)
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
               --base main \
               --head "$BRANCH" \
-              --label "production,automated,critical" || echo "⚠️ PR creation failed"
+              --label "production,automated" || echo "⚠️ PR creation failed"
           else
-            echo "🔄 PR #${PR_NUMBER} already exists, updating..."
-            gh pr edit "$PR_NUMBER" \
-              --title "Production Release v${VERSION}" || echo "⚠️ PR update failed"
+            echo "🔄 PR #${PR_NUMBER} already exists"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
