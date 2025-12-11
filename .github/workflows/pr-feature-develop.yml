@@ -38,6 +38,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
+      - name: Debug Git remote
+        run: |
+          git remote -v
+          git config --list | grep credential
+
       - name: Get next version with semantic-release
         id: semantic
         env:
@@ -47,11 +52,6 @@ jobs:
           npx semantic-release --dry-run > output.log
           VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Debug Git remote
-        run: |
-          git remote -v
-          git config --list | grep credential
 
       - name: Create Pull Request to develop
         uses: peter-evans/create-pull-request@v5
