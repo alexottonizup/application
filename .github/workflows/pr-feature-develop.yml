@@ -53,6 +53,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
+      - name: Verify Git credentials
+        run: |
+          echo "Remote URL:"
+          git remote -v
+          echo "Git config:"
+          git config --list | grep -E "(credential|remote|user)"
+          echo "Testing Git access:"
+          git ls-remote https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
       - name: Get next version with semantic-release
         id: semantic
         env:
