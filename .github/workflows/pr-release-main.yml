@@ -1,18 +1,27 @@
-name: Auto Version & PR (release to main)
+name: Version and PR (release → main)
 
 on:
   push:
     branches:
       - release
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/release'
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
@@ -20,21 +29,43 @@ jobs:
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
-      - name: Get next version with semantic-release
-        id: semantic
+      - name: Run semantic-release (dry-run)
+        run: npx semantic-release --dry-run > output.log 2>&1 || true
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          npx semantic-release --dry-run > output.log
-          VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Pull Request to main
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GH_TOKEN }}
-          commit-message: "chore(prod): prepare v${{ steps.semantic.outputs.version }}"
-          title: "Production Release v${{ steps.semantic.outputs.version }}"
-          body: "Automated PR to deliver production version ${{ steps.semantic.outputs.version }} to main"
-          base: main
-          branch: release
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
+          if [ -z "$VERSION" ]; then
+            echo "⚠️ No version found, using 1.0.0 as default"
+            VERSION="1.0.0"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Create or Update Pull Request
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="release"
+          
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || echo "")
+          
+          if [ -z "$PR_NUMBER" ]; then
+            echo "✨ Creating new PR..."
+            gh pr create \
+              --title "Production Release v${VERSION}" \
+              --body "## 🚀 Automated PR - Release to Production
+          
+          **Version:** \`${VERSION}\`
+          **Branch:** \`${BRANCH}\`
+          **Target:** \`main\` (Production)
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
+              --base main \
+              --head "$BRANCH"
+          else
+            echo "🔄 PR #${PR_NUMBER} already exists"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
