@@ -29,55 +29,120 @@ jobs:
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
+      - name: Check if there are commits to merge
+        id: check_commits
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          
+          # Busca branches atualizadas
+          git fetch origin develop
+          git fetch origin "$BRANCH"
+          
+          # Conta commits entre feature e develop
+          COMMITS=$(git log origin/develop..origin/$BRANCH --oneline 2>/dev/null | wc -l || echo "0")
+          
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          echo "📊 Commits entre $BRANCH e develop: $COMMITS"
+          
+          if [ "$COMMITS" -eq 0 ]; then
+            echo "⚠️ Nenhum commit novo para criar PR"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Há commits para criar PR"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run semantic-release (dry-run)
+        if: steps.check_commits.outputs.skip == 'false'
         run: npx semantic-release --dry-run > output.log 2>&1 || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract version
+        if: steps.check_commits.outputs.skip == 'false'
         id: version
         run: |
           VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
+          
           if [ -z "$VERSION" ]; then
             echo "⚠️ No version found, using 1.0.0 as default"
             VERSION="1.0.0"
           fi
+          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Next version: $VERSION"
 
       - name: Create or Update Pull Request
+        if: steps.check_commits.outputs.skip == 'false'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="${{ github.ref_name }}"
+          COMMITS="${{ steps.check_commits.outputs.commits }}"
           
-          PR_NUMBER=$(gh pr list --head "$BRANCH" --base develop --json number --jq '.[0].number' 2>/dev/null || echo "")
+          # Verifica se já existe PR aberto
+          PR_NUMBER=$(gh pr list \
+            --head "$BRANCH" \
+            --base develop \
+            --state open \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
+            
             gh pr create \
-              --title "develop <- ${BRANCH}" \
+              --title "develop ← ${BRANCH}" \
               --body "## 🚀 PR criado automaticamente
           
-          **Próxima versão:** \`${VERSION}-SNAPSHOT\`
-          **Branch origem:** \`${BRANCH}\`
-          **Branch destino:** \`develop\`
-          **Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          
-          ---
-          
-          ### 📋 Descrição
-          Este PR entrega a feature branch para o ambiente de desenvolvimento.
-          
-          ### ✅ Checklist
-          - [ ] Código revisado
-          - [ ] Testes passando
-          - [ ] Documentação atualizada" \
+**Próxima versão:** \`${VERSION}-SNAPSHOT\`  
+**Branch origem:** \`${BRANCH}\`  
+**Branch destino:** \`develop\`  
+**Commits:** $COMMITS  
+**Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+---
+
+### 📋 Descrição
+Este PR entrega a feature branch para o ambiente de desenvolvimento.
+
+### ✅ Checklist
+- [ ] Código revisado
+- [ ] Testes passando
+- [ ] Documentação atualizada" \
               --base develop \
               --head "$BRANCH"
+            
+            echo "✅ PR criado com sucesso!"
           else
             echo "🔄 PR #${PR_NUMBER} já existe, atualizando..."
+            
             gh pr edit "$PR_NUMBER" \
-              --title "develop <- ${BRANCH}"
+              --title "develop ← ${BRANCH}" \
+              --body "## 🚀 PR atualizado automaticamente
+          
+**Próxima versão:** \`${VERSION}-SNAPSHOT\`  
+**Branch origem:** \`${BRANCH}\`  
+**Branch destino:** \`develop\`  
+**Commits:** $COMMITS  
+**Atualizado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+---
+
+### 📋 Descrição
+Este PR entrega a feature branch para o ambiente de desenvolvimento.
+
+### ✅ Checklist
+- [ ] Código revisado
+- [ ] Testes passando
+- [ ] Documentação atualizada"
+            
+            echo "✅ PR atualizado com sucesso!"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip PR creation (no commits)
+        if: steps.check_commits.outputs.skip == 'true'
+        run: |
+          echo "⚠️ Nenhum commit novo entre ${{ github.ref_name }} e develop"
+          echo "ℹ️ PR não será criado pois as branches estão sincronizadas"
