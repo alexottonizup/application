@@ -1,0 +1,79 @@
+name: Create SNAPSHOT Version on Develop
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - develop
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-snapshot-version:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'feature/')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v3
+        with:
+          ref: develop
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install --save-dev semantic-release @semantic-release/exec
+
+      - name: Get next version
+        id: version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release --dry-run > output.log 2>&1 || true
+          VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
+          
+          if [ -z "$VERSION" ]; then
+            VERSION="1.0.0"
+            echo "⚠️ Using fallback version: $VERSION"
+          fi
+          
+          SNAPSHOT_VERSION="${VERSION}-SNAPSHOT"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "snapshot_version=$SNAPSHOT_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Next SNAPSHOT version: $SNAPSHOT_VERSION"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update version in package.json (if exists)
+        run: |
+          SNAPSHOT_VERSION="${{ steps.version.outputs.snapshot_version }}"
+          
+          if [ -f "package.json" ]; then
+            npm version "$SNAPSHOT_VERSION" --no-git-tag-version --allow-same-version
+            git add package.json
+            git commit -m "chore: bump version to $SNAPSHOT_VERSION [skip ci]" || echo "No changes to commit"
+            git push origin develop
+          else
+            echo "⚠️ package.json not found, skipping version update"
+          fi
+
+      - name: Comment on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SNAPSHOT_VERSION="${{ steps.version.outputs.snapshot_version }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          gh pr comment "$PR_NUMBER" --body "✅ **Versão SNAPSHOT criada:** \`$SNAPSHOT_VERSION\`
+
+          📦 A branch \`develop\` foi atualizada com a nova versão."

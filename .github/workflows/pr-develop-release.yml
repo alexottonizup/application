@@ -1,21 +1,25 @@
 name: Version and PR (develop → release)
 
 on:
-  push:
-    branches: [develop]
+  pull_request:
+    types: [closed]
+    branches:
+      - develop
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  version-and-pr:
+  create-release-branch:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'feature/')
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: Checkout develop
         uses: actions/checkout@v3
         with:
+          ref: develop
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
@@ -27,10 +31,9 @@ jobs:
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
       
-      - name: Get next version with semantic-release
+      - name: Get next version
         id: semantic
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npx semantic-release --dry-run > output.log || true
@@ -41,34 +44,43 @@ jobs:
             echo "⚠️ Using fallback version: $VERSION"
           fi
           
+          RELEASE_VERSION="${VERSION}-RELEASE"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Next version: $VERSION"
+          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Next RELEASE version: $RELEASE_VERSION"
       
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
-      - name: Create or update versioned release branch
+      - name: Create versioned release branch
         id: release_branch
         run: |
           VERSION="${{ steps.semantic.outputs.version }}"
-          RELEASE_BRANCH="release/v${VERSION}"
+          RELEASE_BRANCH="release/${VERSION}-RELEASE"
           
           git fetch origin
           
-          # Verifica se a branch de release versionada já existe
           if git ls-remote --heads origin "$RELEASE_BRANCH" | grep -q "$RELEASE_BRANCH"; then
             echo "✅ Branch $RELEASE_BRANCH já existe"
             git checkout -B "$RELEASE_BRANCH" "origin/$RELEASE_BRANCH"
+            git merge origin/develop --no-edit
           else
             echo "🆕 Criando branch $RELEASE_BRANCH a partir de develop"
             git checkout -b "$RELEASE_BRANCH" origin/develop
-            git push origin "$RELEASE_BRANCH"
           fi
           
+          # Atualiza versão no package.json se existir
+          RELEASE_VERSION="${{ steps.semantic.outputs.release_version }}"
+          if [ -f "package.json" ]; then
+            npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+            git add package.json
+            git commit -m "chore: bump version to $RELEASE_VERSION [skip ci]" || echo "No changes"
+          fi
+          
+          git push origin "$RELEASE_BRANCH"
           echo "branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
-          git checkout develop
       
       - name: Check if there are commits to release
         id: check_commits
@@ -76,31 +88,24 @@ jobs:
           RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
           
           git fetch origin develop
-          git fetch origin "$RELEASE_BRANCH" || true
+          git fetch origin "$RELEASE_BRANCH"
           
-          COMMITS=$(git log origin/$RELEASE_BRANCH..origin/develop --oneline 2>/dev/null | wc -l || echo "999")
+          COMMITS=$(git log origin/$RELEASE_BRANCH..origin/develop --oneline 2>/dev/null | wc -l || echo "1")
           echo "commits=$COMMITS" >> $GITHUB_OUTPUT
-          
-          if [ "$COMMITS" -eq 0 ]; then
-            echo "⚠️ Nenhum commit para release. Pulando criação de PR."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Encontrados $COMMITS commits para release."
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
       
       - name: Create Pull Request to release
-        if: steps.check_commits.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.semantic.outputs.version }}"
+          RELEASE_VERSION="${{ steps.semantic.outputs.release_version }}"
           RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
           COMMITS="${{ steps.check_commits.outputs.commits }}"
           
           PR_NUMBER=$(gh pr list \
-            --head develop \
-            --base "$RELEASE_BRANCH" \
+            --head "$RELEASE_BRANCH" \
+            --base main \
             --state open \
             --json number \
             --jq '.[0].number' 2>/dev/null || echo "")
@@ -108,37 +113,34 @@ jobs:
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Criando novo PR..."
             
-            PR_BODY=$(cat <<EOF
-          ## 🚀 PR criado automaticamente
+            gh pr create \
+              --title "main <- ${RELEASE_BRANCH}" \
+              --body "## 🚀 PR criado automaticamente
           
-          **Versão:** \`${VERSION}-RC\`
-          **Branch origem:** \`develop\`
-          **Branch destino:** \`${RELEASE_BRANCH}\`
+          **Versão:** \`${RELEASE_VERSION}\`
+          **Branch origem:** \`${RELEASE_BRANCH}\`
+          **Branch destino:** \`main\` (Produção)
           **Commits:** $COMMITS
           **Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
           ---
           
           ### 📋 Descrição
-          Este PR entrega a branch de desenvolvimento para o ambiente de homologação (release candidate).
+          Este PR entrega a release candidate para o ambiente de produção.
           
-          ### ✅ Checklist
+          ### ✅ Checklist de Pré-Deploy
+          - [ ] Todos os testes passando
           - [ ] Código revisado
-          - [ ] Testes passando
           - [ ] Documentação atualizada
-          - [ ] Aprovação de stakeholders
-          EOF
-            )
-            
-            gh pr create \
-              --title "${RELEASE_BRANCH} <- develop" \
-              --body "$PR_BODY" \
-              --base "$RELEASE_BRANCH" \
-              --head develop \
+          - [ ] Stakeholders notificados
+          
+          ### 🔄 Pós-Deploy
+          - [ ] Monitorar logs
+          - [ ] Verificar métricas
+          - [ ] Atualizar changelog" \
+              --base main \
+              --head "$RELEASE_BRANCH" \
               --repo ${{ github.repository }}
           else
-            echo "🔄 PR #$PR_NUMBER já existe, atualizando..."
-            gh pr edit "$PR_NUMBER" \
-              --title "${RELEASE_BRANCH} <- develop" \
-              --repo ${{ github.repository }}
+            echo "🔄 PR #$PR_NUMBER já existe"
           fi

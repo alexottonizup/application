@@ -43,14 +43,13 @@ jobs:
             VERSION="1.0.0"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Version: $VERSION"
+          echo "📦 Next version: $VERSION"
 
       - name: Create or Update Pull Request
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="${{ github.ref_name }}"
           
-          # Verifica se PR já existe
           PR_NUMBER=$(gh pr list --head "$BRANCH" --base develop --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
@@ -59,7 +58,7 @@ jobs:
               --title "develop <- ${BRANCH}" \
               --body "## 🚀 PR criado automaticamente
           
-          **Versão:** \`${VERSION}-SNAPSHOT\`
+          **Próxima versão:** \`${VERSION}-SNAPSHOT\`
           **Branch origem:** \`${BRANCH}\`
           **Branch destino:** \`develop\`
           **Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
