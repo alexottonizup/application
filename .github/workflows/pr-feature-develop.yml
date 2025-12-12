@@ -56,29 +56,29 @@ jobs:
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
             gh pr create \
-              --title "Feature v${VERSION}-SNAPSHOT" \
-              --body "## 🚀 Automated PR - Feature to Develop
+              --title "develop <- ${BRANCH}" \
+              --body "## 🚀 PR criado automaticamente
           
-          **Version:** \`${VERSION}-SNAPSHOT\`
-          **Branch:** \`${BRANCH}\`
-          **Target:** \`develop\`
-          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Versão:** \`${VERSION}-SNAPSHOT\`
+          **Branch origem:** \`${BRANCH}\`
+          **Branch destino:** \`develop\`
+          **Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
           ---
           
-          ### 📋 Changes
-          This PR delivers the feature branch to the development environment.
+          ### 📋 Descrição
+          Este PR entrega a feature branch para o ambiente de desenvolvimento.
           
           ### ✅ Checklist
-          - [ ] Code reviewed
-          - [ ] Tests passing
-          - [ ] Documentation updated" \
+          - [ ] Código revisado
+          - [ ] Testes passando
+          - [ ] Documentação atualizada" \
               --base develop \
               --head "$BRANCH"
           else
-            echo "🔄 PR #${PR_NUMBER} already exists, updating..."
+            echo "🔄 PR #${PR_NUMBER} já existe, atualizando..."
             gh pr edit "$PR_NUMBER" \
-              --title "Feature v${VERSION}-SNAPSHOT"
+              --title "develop <- ${BRANCH}"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
