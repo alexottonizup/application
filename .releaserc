@@ -1,8 +1,13 @@
 {
-  "branches": ["main", "develop", {"name": "release/*"}, {"name": "feature/*"}],
+  "branches": [
+    "main",
+    "develop",
+    { "name": "feature/*", "prerelease": "SNAPSHOT" }
+  ],
+  "repositoryUrl": "https://x-access-token:${GH_TOKEN}@github.com/alexottonizup/application.git",
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
-    "@semantic-release/github"
+    "@semantic-release/exec"
   ]
 }
