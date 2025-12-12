@@ -2,5 +2,6 @@
   "devDependencies": {
     "@semantic-release/exec": "^6.0.3",
     "semantic-release": "^22.0.12"
-  }
+  },
+  "version": "1.0.0-RELEASE"
 }
