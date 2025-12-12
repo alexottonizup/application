@@ -1,52 +1,84 @@
-name: Auto Version & PR (feature to develop)
+name: Version and PR (feature → develop)
 
 on:
   push:
     branches:
       - 'feature/**'
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/feature/')
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      - name: Check GH_TOKEN
-        run: 'echo "Token length: ${#GH_TOKEN}"'
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Set remote with PAT
-        run: |
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-    
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/exec
 
-      - name: Get next version with semantic-release
-        id: semantic
+      - name: Run semantic-release (dry-run)
+        run: npx semantic-release --dry-run > output.log 2>&1 || true
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          npx semantic-release --dry-run > output.log || true
-          VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Pull Request to develop
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GH_TOKEN }}
-          commit-message: "chore(feature): prepare v${{ steps.semantic.outputs.version }}-SNAPSHOT"
-          title: "Feature v${{ steps.semantic.outputs.version }}-SNAPSHOT"
-          body: "Automated PR to deliver feature version ${{ steps.semantic.outputs.version }}-SNAPSHOT to develop"
-          base: develop
-          branch: ${{ github.ref_name }}
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
+          if [ -z "$VERSION" ]; then
+            echo "⚠️ No version found, using 1.0.0 as default"
+            VERSION="1.0.0"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Create or Update Pull Request
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="${{ github.ref_name }}"
+          
+          # Verifica se PR já existe
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --base develop --json number --jq '.[0].number' 2>/dev/null || echo "")
+          
+          if [ -z "$PR_NUMBER" ]; then
+            echo "✨ Creating new PR..."
+            gh pr create \
+              --title "Feature v${VERSION}-SNAPSHOT" \
+              --body "## 🚀 Automated PR - Feature to Develop
+          
+          **Version:** \`${VERSION}-SNAPSHOT\`
+          **Branch:** \`${BRANCH}\`
+          **Target:** \`develop\`
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ---
+          
+          ### 📋 Changes
+          This PR delivers the feature branch to the development environment.
+          
+          ### ✅ Checklist
+          - [ ] Code reviewed
+          - [ ] Tests passing
+          - [ ] Documentation updated" \
+              --base develop \
+              --head "$BRANCH"
+          else
+            echo "🔄 PR #${PR_NUMBER} already exists, updating..."
+            gh pr edit "$PR_NUMBER" \
+              --title "Feature v${VERSION}-SNAPSHOT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
