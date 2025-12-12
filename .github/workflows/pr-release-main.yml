@@ -3,7 +3,7 @@ name: Version and PR (release → main)
 on:
   push:
     branches:
-      - release
+      - 'release/**'
 
 permissions:
   contents: write
@@ -12,7 +12,7 @@ permissions:
 jobs:
   version-and-pr:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/release'
+    if: startsWith(github.ref, 'refs/heads/release/')
     
     steps:
       - name: Checkout code
@@ -45,27 +45,65 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Version: $VERSION"
 
+      - name: Check if there are commits to release
+        id: check_commits
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          
+          git fetch origin "$BRANCH"
+          git fetch origin main
+          
+          COMMITS=$(git log origin/main..origin/$BRANCH --oneline | wc -l)
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          
+          if [ "$COMMITS" -eq 0 ]; then
+            echo "⚠️ Nenhum commit para produção. Pulando criação de PR."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Encontrados $COMMITS commits para produção."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create or Update Pull Request
+        if: steps.check_commits.outputs.skip == 'false'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          BRANCH="release"
+          BRANCH="${{ github.ref_name }}"
+          COMMITS="${{ steps.check_commits.outputs.commits }}"
           
           PR_NUMBER=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || echo "")
           
           if [ -z "$PR_NUMBER" ]; then
-            echo "✨ Creating new PR..."
+            echo "✨ Criando novo PR..."
             gh pr create \
-              --title "Production Release v${VERSION}" \
-              --body "## 🚀 Automated PR - Release to Production
+              --title "main <- ${BRANCH}" \
+              --body "## 🚀 PR criado automaticamente
           
-          **Version:** \`${VERSION}\`
-          **Branch:** \`${BRANCH}\`
-          **Target:** \`main\` (Production)
-          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
+          **Versão:** \`${VERSION}\`
+          **Branch origem:** \`${BRANCH}\`
+          **Branch destino:** \`main\` (Produção)
+          **Commits:** $COMMITS
+          **Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ---
+          
+          ### 📋 Descrição
+          Este PR entrega a release candidate para o ambiente de produção.
+          
+          ### ✅ Checklist de Pré-Deploy
+          - [ ] Todos os testes passando
+          - [ ] Código revisado
+          - [ ] Documentação atualizada
+          - [ ] Stakeholders notificados
+          
+          ### 🔄 Pós-Deploy
+          - [ ] Monitorar logs
+          - [ ] Verificar métricas
+          - [ ] Atualizar changelog" \
               --base main \
               --head "$BRANCH"
           else
-            echo "🔄 PR #${PR_NUMBER} already exists"
+            echo "🔄 PR #${PR_NUMBER} já existe"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
