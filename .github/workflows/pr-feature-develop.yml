@@ -89,23 +89,7 @@ jobs:
             echo "✨ Creating new PR..."
             gh pr create \
               --title "develop ← ${BRANCH}" \
-              --body "## 🚀 PR criado automaticamente
-
-**Próxima versão:** \`${VERSION}-SNAPSHOT\`
-**Branch origem:** \`${BRANCH}\`
-**Branch destino:** \`develop\`
-**Commits:** ${COMMITS}
-**Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Descrição
-Este PR entrega a feature branch para o ambiente de desenvolvimento.
-
-### ✅ Checklist
-- [ ] Código revisado
-- [ ] Testes passando
-- [ ] Documentação atualizada" \
+              --body "## 🚀 PR criado automaticamente" \
               --base develop \
               --head "$BRANCH"
             
@@ -114,23 +98,7 @@ Este PR entrega a feature branch para o ambiente de desenvolvimento.
             echo "🔄 PR #${PR_NUMBER} já existe, atualizando..."
             gh pr edit "$PR_NUMBER" \
               --title "develop ← ${BRANCH}" \
-              --body "## 🚀 PR atualizado automaticamente
-
-**Próxima versão:** \`${VERSION}-SNAPSHOT\`
-**Branch origem:** \`${BRANCH}\`
-**Branch destino:** \`develop\`
-**Commits:** ${COMMITS}
-**Atualizado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
----
-
-### 📋 Descrição
-Este PR entrega a feature branch para o ambiente de desenvolvimento.
-
-### ✅ Checklist
-- [ ] Código revisado
-- [ ] Testes passando
-- [ ] Documentação atualizada"
+              --body "## 🚀 PR atualizado automaticamente"
             
             echo "✅ PR atualizado com sucesso!"
           fi
