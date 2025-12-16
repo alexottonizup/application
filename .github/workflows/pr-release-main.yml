@@ -12,15 +12,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up GitHub CLI
-        uses: cli/cli-action@v2
+      - name: Get version from branch name
+        id: version
+        run: |
+          VERSION=$(echo "${{ github.ref_name }}" | sed 's/release\///')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Versão: $VERSION"
 
       - name: Create PR to main
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr create \
-            --base main \
-            --head ${{ github.ref_name }} \
-            --title "${{ github.ref_name }} → main" \
-            --body "PR automático da branch de release para main."
+          # Verifica se já existe PR aberto
+          EXISTING_PR=$(gh pr list --base main --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          
+          if [ -z "$EXISTING_PR" ]; then
+            gh pr create \
+              --base main \
+              --head "${{ github.ref_name }}" \
+              --title "🚀 ${{ github.ref_name }} → main" \
+              --body "**PR automático da branch de release para main**
+
+          📦 **Versão:** \`${{ steps.version.outputs.version }}\`
+          🔄 **Origem:** \`${{ github.ref_name }}\`
+          🎯 **Destino:** \`main\`
+          
+          ⚠️ **Importante:** Após o merge, será criada automaticamente:
+          - Tag \`v${{ steps.version.outputs.version }}\`
+          - GitHub Release
+          
+          ---
+          _Este PR foi criado automaticamente pelo GitHub Actions_"
+            echo "✅ PR criado com sucesso!"
+          else
+            echo "⚠️ PR #$EXISTING_PR já existe"
+          fi
