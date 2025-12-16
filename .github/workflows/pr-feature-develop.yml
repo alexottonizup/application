@@ -12,6 +12,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
+          token: ${{ secrets.GH_TOKEN }}  # ✅ Usar PAT
           fetch-depth: 0
 
       - name: Fetch develop
@@ -27,7 +28,7 @@ jobs:
       - name: Create PR to develop
         if: steps.check_commits.outputs.commits != '0'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # ✅ Usar PAT
         run: |
           FEATURE_NAME=$(echo "${{ github.ref_name }}" | sed 's/feature\///')
           
@@ -41,13 +42,13 @@ jobs:
               --title "✨ feature/$FEATURE_NAME → develop" \
               --body "**PR automático da feature branch para develop**
 
-          🌿 **Feature:** \`$FEATURE_NAME\`
-          🔄 **Origem:** \`${{ github.ref_name }}\`
-          🎯 **Destino:** \`develop\`
-          📝 **Commits:** ${{ steps.check_commits.outputs.commits }}
-          
-          ---
-          _Este PR foi criado automaticamente pelo GitHub Actions_"
+🌿 **Feature:** \`$FEATURE_NAME\`
+🔄 **Origem:** \`${{ github.ref_name }}\`
+🎯 **Destino:** \`develop\`
+📝 **Commits:** ${{ steps.check_commits.outputs.commits }}
+
+---
+_Este PR foi criado automaticamente pelo GitHub Actions_"
             echo "✅ PR criado com sucesso!"
           else
             echo "⚠️ PR #$EXISTING_PR já existe"
