@@ -33,17 +33,11 @@ jobs:
         id: check_commits
         run: |
           BRANCH="${{ github.ref_name }}"
-          
-          # Busca branches atualizadas
           git fetch origin develop
           git fetch origin "$BRANCH"
-          
-          # Conta commits entre feature e develop
           COMMITS=$(git log origin/develop..origin/$BRANCH --oneline 2>/dev/null | wc -l || echo "0")
-          
           echo "commits=$COMMITS" >> $GITHUB_OUTPUT
           echo "📊 Commits entre $BRANCH e develop: $COMMITS"
-          
           if [ "$COMMITS" -eq 0 ]; then
             echo "⚠️ Nenhum commit novo para criar PR"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -76,25 +70,22 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           BRANCH="${{ github.ref_name }}"
           COMMITS="${{ steps.check_commits.outputs.commits }}"
-          
-          # Verifica se já existe PR aberto
           PR_NUMBER=$(gh pr list \
             --head "$BRANCH" \
             --base develop \
             --state open \
             --json number \
             --jq '.[0].number' 2>/dev/null || echo "")
-          
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
             gh pr create \
-              --title "develop ← ${BRANCH}" \
+              --title "develop ← $BRANCH" \
               --body "## 🚀 PR criado automaticamente
 
-**Próxima versão:** \`${VERSION}-SNAPSHOT\`
-**Branch origem:** \`${BRANCH}\`
+**Próxima versão:** \`$VERSION-SNAPSHOT\`
+**Branch origem:** \`$BRANCH\`
 **Branch destino:** \`develop\`
-**Commits:** ${COMMITS}
+**Commits:** $COMMITS
 **Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
 ---
@@ -108,18 +99,17 @@ Este PR entrega a feature branch para o ambiente de desenvolvimento.
 - [ ] Documentação atualizada" \
               --base develop \
               --head "$BRANCH"
-            
             echo "✅ PR criado com sucesso!"
           else
-            echo "🔄 PR #${PR_NUMBER} já existe, atualizando..."
+            echo "🔄 PR #$PR_NUMBER já existe, atualizando..."
             gh pr edit "$PR_NUMBER" \
-              --title "develop ← ${BRANCH}" \
+              --title "develop ← $BRANCH" \
               --body "## 🚀 PR atualizado automaticamente
 
-**Próxima versão:** \`${VERSION}-SNAPSHOT\`
-**Branch origem:** \`${BRANCH}\`
+**Próxima versão:** \`$VERSION-SNAPSHOT\`
+**Branch origem:** \`$BRANCH\`
 **Branch destino:** \`develop\`
-**Commits:** ${COMMITS}
+**Commits:** $COMMITS
 **Atualizado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
 ---
@@ -131,7 +121,6 @@ Este PR entrega a feature branch para o ambiente de desenvolvimento.
 - [ ] Código revisado
 - [ ] Testes passando
 - [ ] Documentação atualizada"
-            
             echo "✅ PR atualizado com sucesso!"
           fi
         env:
