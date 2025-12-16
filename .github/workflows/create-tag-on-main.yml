@@ -1,24 +1,23 @@
-name: Create Release Tag on Main
+name: Create Tag on Main
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - main
 
 permissions:
   contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
-  create-release-tag:
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+  create-tag:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout main
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
-          ref: main
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -28,104 +27,161 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: npm install --save-dev semantic-release @semantic-release/exec
-
-      - name: Extract version from branch name
-        id: version
         run: |
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
-          # Extrai versão da branch release/1.1.0-RELEASE
-          VERSION=$(echo "$BRANCH_NAME" | grep -oP 'release/\K[0-9]+\.[0-9]+\.[0-9]+')
+          npm install -g semantic-release \
+            @semantic-release/changelog \
+            @semantic-release/git \
+            @semantic-release/github
+
+      - name: Run Semantic Release (Dry Run)
+        id: semantic
+        run: |
+          npx semantic-release --dry-run > output.log 2>&1 || true
+          
+          # Extrair versão
+          VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' output.log || echo "")
           
           if [ -z "$VERSION" ]; then
-            echo "⚠️ Could not extract version from branch name, using semantic-release"
-            npx semantic-release --dry-run > output.log 2>&1 || true
-            VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
-          fi
-          
-          if [ -z "$VERSION" ]; then
-            VERSION="1.0.0"
-            echo "⚠️ Using fallback version: $VERSION"
-          fi
-          
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Release version: $VERSION"
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Update version in package.json
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          
-          if [ -f "package.json" ]; then
-            npm version "$VERSION" --no-git-tag-version --allow-same-version
-            git add package.json
-            git commit -m "chore: release version $VERSION [skip ci]" || echo "No changes to commit"
-            git push origin main
-          fi
-
-      - name: Create Git Tag
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_NAME="v${VERSION}"
-          
-          # Verifica se a tag já existe
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "⚠️ Tag $TAG_NAME já existe"
+            echo "⚠️ Nenhuma nova versão para publicar"
+            echo "version=" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          echo "✨ Criando tag $TAG_NAME"
-          git tag -a "$TAG_NAME" -m "Release version $VERSION"
+          echo "✅ Nova versão detectada: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if tag exists
+        id: check_tag
+        if: steps.semantic.outputs.version != ''
+        run: |
+          VERSION="${{ steps.semantic.outputs.version }}"
+          TAG_NAME="v$VERSION"
+          
+          # Atualizar tags remotas
+          git fetch --tags
+          
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "⚠️ Tag $TAG_NAME já existe"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            
+            # Verificar se release existe
+            if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+              echo "release_exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "release_exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "✅ Tag $TAG_NAME não existe"
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Git Tag
+        if: |
+          steps.semantic.outputs.version != '' && 
+          steps.check_tag.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.semantic.outputs.version }}"
+          TAG_NAME="v$VERSION"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git tag -a "$TAG_NAME" -m "Release $VERSION"
           git push origin "$TAG_NAME"
           
-          echo "✅ Tag $TAG_NAME criada com sucesso!"
+          echo "✅ Tag $TAG_NAME criada e enviada"
 
       - name: Create GitHub Release
+        if: |
+          steps.semantic.outputs.version != '' && 
+          steps.check_tag.outputs.release_exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_NAME="v${VERSION}"
+          VERSION="${{ steps.semantic.outputs.version }}"
+          TAG_NAME="v$VERSION"
           
-          # Gera changelog dos commits desde a última tag
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
-          if [ -z "$PREVIOUS_TAG" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
-          else
-            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
-          fi
+          # Gerar changelog
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 2>/dev/null || echo "")..HEAD)
           
           gh release create "$TAG_NAME" \
             --title "Release $VERSION" \
-            --notes "## 🚀 Release $VERSION
+            --notes "## 🚀 Mudanças
 
-          ### 📋 Changelog
-          $CHANGELOG
+$CHANGELOG
 
-          ---
-          **Data:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          **Branch:** main" \
-            --repo ${{ github.repository }}
+---
+📦 Versão: \`$VERSION\`
+🏷️ Tag: \`$TAG_NAME\`
+📅 Data: $(date '+%Y-%m-%d %H:%M:%S')" \
+            --target main \
+            --latest
+          
+          echo "✅ Release $TAG_NAME criada"
 
-      - name: Comment on PR
+      - name: Find Merged PR
+        id: find_pr
+        if: steps.semantic.outputs.version != ''
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --state merged \
+            --base main \
+            --limit 1 \
+            --json number \
+            --jq '.[0].number')
+          
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on PR
+        if: |
+          steps.semantic.outputs.version != '' && 
+          steps.find_pr.outputs.pr_number != '' &&
+          steps.find_pr.outputs.pr_number != 'null'
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_NAME="v${VERSION}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
+          VERSION="${{ steps.semantic.outputs.version }}"
+          TAG_NAME="v$VERSION"
+          PR_NUMBER="${{ steps.find_pr.outputs.pr_number }}"
           
-          gh pr comment "$PR_NUMBER" --body "🎉 **Release publicada com sucesso!**
+          STATUS="criada"
+          if [ "${{ steps.check_tag.outputs.exists }}" = "true" ]; then
+            STATUS="atualizada"
+          fi
+          
+          gh pr comment "$PR_NUMBER" --body "🎉 **Release $STATUS com sucesso!**
 
-          📦 **Versão:** \`$VERSION\`
-          🏷️ **Tag:** \`$TAG_NAME\`
-          🔗 **Release:** https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME
+📦 **Versão:** \`$VERSION\`
+🏷️ **Tag:** \`$TAG_NAME\`
+🔗 **Release:** https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME
 
-          ✅ A versão foi publicada em produção."
+✅ A versão foi publicada em produção." || \
+          echo "⚠️ Não foi possível comentar no PR #$PR_NUMBER"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 📊 Resumo da Execução" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -n "${{ steps.semantic.outputs.version }}" ]; then
+            echo "✅ **Versão:** ${{ steps.semantic.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Tag:** v${{ steps.semantic.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ steps.check_tag.outputs.exists }}" = "true" ]; then
+              echo "⚠️ **Status:** Tag já existia" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ **Status:** Nova tag criada" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "ℹ️ **Status:** Nenhuma nova versão para publicar" >> $GITHUB_STEP_SUMMARY
+          fi
