@@ -1,103 +1,73 @@
-name: Version and PR (feature → develop)
+name: "PR Feature → Develop"
 
 on:
   push:
     branches:
       - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  version-and-pr:
+  create-pr:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/feature/')
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
-      - name: Install dependencies
-        run: npm install --save-dev semantic-release @semantic-release/exec
-
-      - name: Check if there are commits to merge
-        id: check_commits
+      - name: Install semantic-release
         run: |
-          BRANCH="${{ github.ref_name }}"
-          git fetch origin develop
-          git fetch origin "$BRANCH"
-          
-          COMMITS=$(git log origin/develop..origin/$BRANCH --oneline 2>/dev/null | wc -l || echo "0")
-          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
-          echo "📊 Commits entre $BRANCH e develop: $COMMITS"
-          
-          if [ "$COMMITS" -eq 0 ]; then
-            echo "⚠️ Nenhum commit novo para criar PR"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Há commits para criar PR"
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
+          npm install -g semantic-release @semantic-release/git @semantic-release/github
 
-      - name: Run semantic-release (dry-run)
-        if: steps.check_commits.outputs.skip == 'false'
-        run: npx semantic-release --dry-run > output.log 2>&1 || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Extract version
-        if: steps.check_commits.outputs.skip == 'false'
+      - name: Get next version
         id: version
         run: |
-          VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
-          if [ -z "$VERSION" ]; then
-            echo "⚠️ No version found, using 1.0.0 as default"
-            VERSION="1.0.0"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Next version: $VERSION"
-
-      - name: Create or Update Pull Request
-        if: steps.check_commits.outputs.skip == 'false'
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          BRANCH="${{ github.ref_name }}"
+          # Calcular próxima versão
+          NEXT_VERSION=$(npx semantic-release --dry-run --no-ci | grep "next release version is" | awk '{print $NF}')
           
-          PR_NUMBER=$(gh pr list \
-            --head "$BRANCH" \
-            --base develop \
-            --state open \
-            --json number \
-            --jq '.[0].number' 2>/dev/null || echo "")
-          
-          if [ -z "$PR_NUMBER" ]; then
-            echo "✨ Criando novo PR..."
-            gh pr create \
-              --title "develop ← ${BRANCH}" \
-              --body "## 🚀 PR criado automaticamente
-
-**Próxima versão:** \`${VERSION}-SNAPSHOT\`" \
-              --base develop \
-              --head "$BRANCH"
-            echo "✅ PR criado com sucesso!"
-          else
-            echo "🔄 PR #${PR_NUMBER} já existe"
-            echo "✅ PR já existe, nenhuma ação necessária"
+          if [ -z "$NEXT_VERSION" ]; then
+            NEXT_VERSION="1.0.0"
           fi
+          
+          echo "version=${NEXT_VERSION}-SNAPSHOT" >> $GITHUB_OUTPUT
+          echo "📦 Próxima versão: ${NEXT_VERSION}-SNAPSHOT"
+
+      - name: Create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Skip PR creation (no commits)
-        if: steps.check_commits.outputs.skip == 'true'
         run: |
-          echo "⚠️ Nenhum commit novo entre ${{ github.ref_name }} e develop"
-          echo "ℹ️ PR não será criado pois as branches estão sincronizadas"
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Verificar se PR já existe
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base develop --json number --jq '.[0].number')
+          
+          if [ -n "$EXISTING_PR" ]; then
+            echo "✅ PR #$EXISTING_PR já existe"
+            exit 0
+          fi
+          
+          # Criar PR
+          gh pr create \
+            --base develop \
+            --head "$BRANCH_NAME" \
+            --title "develop ← $BRANCH_NAME" \
+            --body "🚀 **Versão:** \`$VERSION\`
+
+          **Branch:** \`$BRANCH_NAME\`
+          **Target:** \`develop\`
+          
+          ---
+          _PR criado automaticamente pelo workflow_"
+          
+          echo "✅ PR criado com sucesso!"
