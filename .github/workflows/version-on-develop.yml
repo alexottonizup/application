@@ -21,7 +21,7 @@ jobs:
         with:
           ref: develop
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -34,14 +34,15 @@ jobs:
       - name: Get next version
         id: version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           npx semantic-release --dry-run > output.log 2>&1 || true
-          VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
+          VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
           
           if [ -z "$VERSION" ]; then
-            VERSION="1.0.0"
-            echo "⚠️ Using fallback version: $VERSION"
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+            VERSION=$(echo "$LAST_TAG" | sed 's/v//' | awk -F. '{$2+=1; $3=0} 1' OFS=.)
+            echo "⚠️ Using incremented version from last tag: $VERSION"
           fi
           
           SNAPSHOT_VERSION="${VERSION}-SNAPSHOT"
@@ -57,7 +58,6 @@ jobs:
       - name: Update version in package.json (if exists)
         run: |
           SNAPSHOT_VERSION="${{ steps.version.outputs.snapshot_version }}"
-          
           if [ -f "package.json" ]; then
             npm version "$SNAPSHOT_VERSION" --no-git-tag-version --allow-same-version
             git add package.json
@@ -69,11 +69,8 @@ jobs:
 
       - name: Comment on PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           SNAPSHOT_VERSION="${{ steps.version.outputs.snapshot_version }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          
-          gh pr comment "$PR_NUMBER" --body "✅ **Versão SNAPSHOT criada:** \`$SNAPSHOT_VERSION\`
-
-          📦 A branch \`develop\` foi atualizada com a nova versão."
+          gh pr comment "$PR_NUMBER" --body "✅ **Versão SNAPSHOT criada:** \`$SNAPSHOT_VERSION\`"
