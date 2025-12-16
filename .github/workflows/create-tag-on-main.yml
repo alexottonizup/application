@@ -12,11 +12,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Get version from package.json
+      - name: Get version from .version file
         id: version
         run: |
-          VERSION=$(jq -r .version package.json)
+          VERSION=$(cat .version | sed 's/-RELEASE//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Versão: $VERSION"
 
       - name: Create tag and GitHub Release
         env:
@@ -24,6 +25,7 @@ jobs:
         run: |
           git tag "v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
+          
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "Release v${{ steps.version.outputs.version }}" \
             --notes "Release automática da versão v${{ steps.version.outputs.version }}"

@@ -14,14 +14,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get next version
+      - name: Get version from .version file
         id: version
         run: |
-          # Pega versão do package.json e incrementa patch
-          CURRENT_VERSION=$(jq -r .version package.json | sed 's/-SNAPSHOT//')
-          VERSION=$(echo "$CURRENT_VERSION" | awk -F. '{$NF+=1; OFS="."; print $0}')
+          VERSION=$(cat .version | sed 's/-SNAPSHOT//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Próxima versão: $VERSION"
+          echo "📦 Versão: $VERSION"
 
       - name: Create release branch if not exists
         env:
@@ -33,13 +31,12 @@ jobs:
             echo "✨ Criando branch $BRANCH"
             git checkout -b "$BRANCH"
             
-            # Atualiza versão no package.json (remove -SNAPSHOT)
-            jq --arg version "${{ steps.version.outputs.version }}-RELEASE" '.version = $version' package.json > tmp.json
-            mv tmp.json package.json
+            # Atualiza .version (remove -SNAPSHOT)
+            echo "${{ steps.version.outputs.version }}-RELEASE" > .version
             
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add package.json
+            git add .version
             git commit -m "chore: bump version to ${{ steps.version.outputs.version }}-RELEASE [skip ci]"
             git push origin "$BRANCH"
           else
@@ -52,7 +49,6 @@ jobs:
         run: |
           BRANCH="release/${{ steps.version.outputs.version }}-RELEASE"
           
-          # Verifica se já existe PR aberto
           EXISTING_PR=$(gh pr list --base "$BRANCH" --head develop --state open --json number --jq '.[0].number')
           
           if [ -z "$EXISTING_PR" ]; then
@@ -62,12 +58,12 @@ jobs:
               --title "🚀 develop → $BRANCH" \
               --body "**PR automático de develop para branch de release**
 
-          📦 **Versão:** \`${{ steps.version.outputs.version }}-RELEASE\`
-          🔄 **Origem:** \`develop\`
-          🎯 **Destino:** \`$BRANCH\`
-          
-          ---
-          _Este PR foi criado automaticamente pelo GitHub Actions_"
+📦 **Versão:** \`${{ steps.version.outputs.version }}-RELEASE\`
+🔄 **Origem:** \`develop\`
+🎯 **Destino:** \`$BRANCH\`
+
+---
+_Este PR foi criado automaticamente pelo GitHub Actions_"
             echo "✅ PR criado com sucesso!"
           else
             echo "⚠️ PR #$EXISTING_PR já existe"
