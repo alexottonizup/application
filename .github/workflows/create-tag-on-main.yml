@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -50,7 +50,7 @@ jobs:
           echo "✅ Nova versão detectada: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GB_TOKEN: ${{ secrets.GB_TOKEN }}
 
       - name: Check if tag exists
         id: check_tag
@@ -80,7 +80,7 @@ jobs:
           
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GB_TOKEN }}
 
       - name: Create Git Tag
         if: |
@@ -103,7 +103,7 @@ jobs:
           steps.semantic.outputs.version != '' && 
           steps.check_tag.outputs.release_exists == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GB_TOKEN }}
         run: |
           VERSION="${{ steps.semantic.outputs.version }}"
           TAG_NAME="v$VERSION"
@@ -139,7 +139,7 @@ $CHANGELOG
           
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GB_TOKEN }}
 
       - name: Comment on PR
         if: |
@@ -165,7 +165,7 @@ $CHANGELOG
 ✅ A versão foi publicada em produção." || \
           echo "⚠️ Não foi possível comentar no PR #$PR_NUMBER"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GB_TOKEN }}
 
       - name: Summary
         if: always()
