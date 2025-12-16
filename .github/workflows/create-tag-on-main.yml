@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -38,7 +38,6 @@ jobs:
         run: |
           npx semantic-release --dry-run > output.log 2>&1 || true
           
-          # Extrair versão
           VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' output.log || echo "")
           
           if [ -z "$VERSION" ]; then
@@ -50,7 +49,7 @@ jobs:
           echo "✅ Nova versão detectada: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         env:
-          GB_TOKEN: ${{ secrets.GB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if tag exists
         id: check_tag
@@ -59,14 +58,12 @@ jobs:
           VERSION="${{ steps.semantic.outputs.version }}"
           TAG_NAME="v$VERSION"
           
-          # Atualizar tags remotas
           git fetch --tags
           
           if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
             echo "⚠️ Tag $TAG_NAME já existe"
             echo "exists=true" >> $GITHUB_OUTPUT
             
-            # Verificar se release existe
             if gh release view "$TAG_NAME" >/dev/null 2>&1; then
               echo "release_exists=true" >> $GITHUB_OUTPUT
             else
@@ -80,11 +77,11 @@ jobs:
           
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
         env:
-          GH_TOKEN: ${{ secrets.GB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Git Tag
         if: |
-          steps.semantic.outputs.version != '' && 
+          steps.semantic.outputs.version != '' &&
           steps.check_tag.outputs.exists == 'false'
         run: |
           VERSION="${{ steps.semantic.outputs.version }}"
@@ -100,27 +97,26 @@ jobs:
 
       - name: Create GitHub Release
         if: |
-          steps.semantic.outputs.version != '' && 
+          steps.semantic.outputs.version != '' &&
           steps.check_tag.outputs.release_exists == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.semantic.outputs.version }}"
           TAG_NAME="v$VERSION"
           
-          # Gerar changelog
           CHANGELOG=$(git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 2>/dev/null || echo "")..HEAD)
           
           gh release create "$TAG_NAME" \
             --title "Release $VERSION" \
             --notes "## 🚀 Mudanças
-
-$CHANGELOG
-
----
-📦 Versão: \`$VERSION\`
-🏷️ Tag: \`$TAG_NAME\`
-📅 Data: $(date '+%Y-%m-%d %H:%M:%S')" \
+          
+          $CHANGELOG
+          
+          ---
+          📦 Versão: \`$VERSION\`
+          🏷️ Tag: \`$TAG_NAME\`
+          📅 Data: $(date '+%Y-%m-%d %H:%M:%S')" \
             --target main \
             --latest
           
@@ -139,11 +135,11 @@ $CHANGELOG
           
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
         env:
-          GH_TOKEN: ${{ secrets.GB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Comment on PR
         if: |
-          steps.semantic.outputs.version != '' && 
+          steps.semantic.outputs.version != '' &&
           steps.find_pr.outputs.pr_number != '' &&
           steps.find_pr.outputs.pr_number != 'null'
         run: |
@@ -157,15 +153,14 @@ $CHANGELOG
           fi
           
           gh pr comment "$PR_NUMBER" --body "🎉 **Release $STATUS com sucesso!**
-
-📦 **Versão:** \`$VERSION\`
-🏷️ **Tag:** \`$TAG_NAME\`
-🔗 **Release:** https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME
-
-✅ A versão foi publicada em produção." || \
-          echo "⚠️ Não foi possível comentar no PR #$PR_NUMBER"
+          
+          📦 **Versão:** \`$VERSION\`
+          🏷️ **Tag:** \`$TAG_NAME\`
+          🔗 **Release:** https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME
+          
+          ✅ A versão foi publicada em produção." || echo "⚠️ Não foi possível comentar no PR #$PR_NUMBER"
         env:
-          GH_TOKEN: ${{ secrets.GB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         if: always()
