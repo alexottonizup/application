@@ -1,122 +1,39 @@
-name: Create Tag on Main
+name: "Create Tag on Main"
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - main
+    # APENAS main!
+    # NUNCA em outras branches!
 
 permissions:
   contents: write
-  pull-requests: write
-  issues: write
 
 jobs:
   create-tag:
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
+    # Proteção adicional
+    if: github.ref == 'refs/heads/main'
     
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
-      - name: Extract version from branch name
-        id: version
+      - name: Install semantic-release
         run: |
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
-          VERSION=$(echo "$BRANCH_NAME" | grep -oP 'release/\K[0-9]+\.[0-9]+\.[0-9]+')
-          
-          if [ -z "$VERSION" ]; then
-            echo "⚠️ Could not extract version from branch name"
-            if [ -f "package.json" ]; then
-              VERSION=$(node -p "require('./package.json').version" | sed 's/-RELEASE//')
-            else
-              VERSION="1.0.0"
-            fi
-          fi
-          
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Release version: $VERSION"
+          npm install -g semantic-release @semantic-release/git @semantic-release/github
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Update version in package.json
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          if [ -f "package.json" ]; then
-            npm version "$VERSION" --no-git-tag-version --allow-same-version
-            git add package.json
-            git commit -m "chore: release version $VERSION [skip ci]" || echo "No changes to commit"
-            git push origin main
-          fi
-
-      - name: Check if tag exists
-        id: check_tag
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_NAME="v${VERSION}"
-          git fetch --tags
-          
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "⚠️ Tag $TAG_NAME já existe"
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Tag $TAG_NAME não existe"
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-
-      - name: Create Git Tag
-        if: steps.check_tag.outputs.exists == 'false'
+      - name: Create Tag and Release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_NAME="v${VERSION}"
-          git tag -a "$TAG_NAME" -m "Release version $VERSION"
-          git push origin "$TAG_NAME"
-          echo "✅ Tag $TAG_NAME criada com sucesso!"
-
-      - name: Create GitHub Release
-        if: steps.check_tag.outputs.exists == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_NAME="v${VERSION}"
-          
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -z "$PREVIOUS_TAG" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
-          else
-            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
-          fi
-          
-          gh release create "$TAG_NAME" \
-            --title "Release $VERSION" \
-            --notes "## 🚀 Release $VERSION
-
-### 📋 Changelog
-$CHANGELOG" \
-            --repo ${{ github.repository }}
-
-      - name: Comment on PR
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_NAME="v${VERSION}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          gh pr comment "$PR_NUMBER" --body "🎉 **Release publicada:** \`$TAG_NAME\`"
+          # Executar semantic-release
+          npx semantic-release
