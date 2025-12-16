@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -33,10 +33,14 @@ jobs:
         id: check_commits
         run: |
           BRANCH="${{ github.ref_name }}"
+          
+          # Busca branches atualizadas
           git fetch origin develop
           git fetch origin "$BRANCH"
           
+          # Conta commits entre feature e develop
           COMMITS=$(git log origin/develop..origin/$BRANCH --oneline 2>/dev/null | wc -l || echo "0")
+          
           echo "commits=$COMMITS" >> $GITHUB_OUTPUT
           echo "📊 Commits entre $BRANCH e develop: $COMMITS"
           
@@ -52,11 +56,7 @@ jobs:
         if: steps.check_commits.outputs.skip == 'false'
         run: npx semantic-release --dry-run > output.log 2>&1 || true
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          GIT_AUTHOR_NAME: github-actions[bot]
-          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
-          GIT_COMMITTER_NAME: github-actions[bot]
-          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract version
         if: steps.check_commits.outputs.skip == 'false'
@@ -77,6 +77,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           COMMITS="${{ steps.check_commits.outputs.commits }}"
           
+          # Verifica se já existe PR aberto
           PR_NUMBER=$(gh pr list \
             --head "$BRANCH" \
             --base develop \
@@ -87,13 +88,13 @@ jobs:
           if [ -z "$PR_NUMBER" ]; then
             echo "✨ Creating new PR..."
             gh pr create \
-              --title "develop ← $BRANCH" \
+              --title "develop ← ${BRANCH}" \
               --body "## 🚀 PR criado automaticamente
 
-**Próxima versão:** \`$VERSION-SNAPSHOT\`  
-**Branch origem:** \`$BRANCH\`  
-**Branch destino:** \`develop\`  
-**Commits:** $COMMITS  
+**Próxima versão:** \`${VERSION}-SNAPSHOT\`
+**Branch origem:** \`${BRANCH}\`
+**Branch destino:** \`develop\`
+**Commits:** ${COMMITS}
 **Criado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
 ---
@@ -107,17 +108,18 @@ Este PR entrega a feature branch para o ambiente de desenvolvimento.
 - [ ] Documentação atualizada" \
               --base develop \
               --head "$BRANCH"
+            
             echo "✅ PR criado com sucesso!"
           else
-            echo "🔄 PR #$PR_NUMBER já existe, atualizando..."
+            echo "🔄 PR #${PR_NUMBER} já existe, atualizando..."
             gh pr edit "$PR_NUMBER" \
-              --title "develop ← $BRANCH" \
+              --title "develop ← ${BRANCH}" \
               --body "## 🚀 PR atualizado automaticamente
 
-**Próxima versão:** \`$VERSION-SNAPSHOT\`  
-**Branch origem:** \`$BRANCH\`  
-**Branch destino:** \`develop\`  
-**Commits:** $COMMITS  
+**Próxima versão:** \`${VERSION}-SNAPSHOT\`
+**Branch origem:** \`${BRANCH}\`
+**Branch destino:** \`develop\`
+**Commits:** ${COMMITS}
 **Atualizado em:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
 ---
@@ -129,10 +131,11 @@ Este PR entrega a feature branch para o ambiente de desenvolvimento.
 - [ ] Código revisado
 - [ ] Testes passando
 - [ ] Documentação atualizada"
+            
             echo "✅ PR atualizado com sucesso!"
           fi
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Skip PR creation (no commits)
         if: steps.check_commits.outputs.skip == 'true'
