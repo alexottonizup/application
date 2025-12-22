@@ -71,17 +71,6 @@ jobs:
             --base main \
             --head "$RELEASE_BRANCH" \
             --title "🚀 Release $VERSION" \
-            --body "## 🚀 Release $VERSION
-
-**Branch:** \`$RELEASE_BRANCH\`  
-**Target:** \`main\`
-
-### 📋 Checklist
-- [ ] Testes passando
-- [ ] Documentação atualizada
-- [ ] Changelog revisado
-
----
-_PR criado automaticamente pelo workflow_"
+            --body "## 🚀 Release $VERSION _PR criado automaticamente pelo workflow_"
           
           echo "✅ PR criado com sucesso!"
