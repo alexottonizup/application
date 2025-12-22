@@ -23,49 +23,33 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
-        run: npm install --save-dev semantic-release @semantic-release/exec
-
-      - name: Get next version
-        id: version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          npx semantic-release --dry-run > output.log 2>&1 || true
-          VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' output.log | tail -1)
-          
-          if [ -z "$VERSION" ]; then
-            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-            VERSION=$(echo "$LAST_TAG" | sed 's/v//' | awk -F. '{$2+=1; $3=0} 1' OFS=.)
-            echo "⚠️ Using incremented version from last tag: $VERSION"
-          fi
-          
-          SNAPSHOT_VERSION="${VERSION}-SNAPSHOT"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "snapshot_version=$SNAPSHOT_VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Next SNAPSHOT version: $SNAPSHOT_VERSION"
-
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update version in package.json (if exists)
+      - name: Get next SNAPSHOT version and update .version
+        id: version
         run: |
-          SNAPSHOT_VERSION="${{ steps.version.outputs.snapshot_version }}"
-          if [ -f "package.json" ]; then
-            npm version "$SNAPSHOT_VERSION" --no-git-tag-version --allow-same-version
-            git add package.json
-            git commit -m "chore: bump version to $SNAPSHOT_VERSION [skip ci]" || echo "No changes to commit"
-            git push origin develop
+          if [ -f ".version" ]; then
+            BASE_VERSION=$(cat .version | sed 's/-.*//')
           else
-            echo "⚠️ package.json not found, skipping version update"
+            BASE_VERSION="1.0.0"
           fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          MINOR=$((MINOR+1))
+          NEXT_VERSION="$MAJOR.$MINOR.0-SNAPSHOT"
+
+          echo "$NEXT_VERSION" > .version
+          echo "snapshot_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Next SNAPSHOT version: $NEXT_VERSION"
+
+      - name: Commit .version to develop
+        run: |
+          git add .version
+          git commit -m "chore: bump version to ${{ steps.version.outputs.snapshot_version }} [skip ci]" || echo "No changes"
+          git push origin develop
 
       - name: Comment on PR
         env:
