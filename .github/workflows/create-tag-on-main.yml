@@ -11,7 +11,6 @@ permissions:
 jobs:
   create-tag:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout
@@ -20,25 +19,35 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
 
-      # ✅ Configurar Git
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install semantic-release
+      - name: Get version from .version file (remove sufixo)
+        id: version
         run: |
-          npm install -g semantic-release @semantic-release/git @semantic-release/github
+          VERSION=$(cat .version | sed 's/-.*//')
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Create Tag and Release
+      - name: Create Tag and Push
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo "🏷️ Criando tag e release..."
-          npx semantic-release
-          echo "✅ Tag criada com sucesso!"
+          TAG="${{ steps.version.outputs.tag }}"
+          
+          # Verifica se a tag já existe remotamente antes de criar/pushar!
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "⚠️ Tag $TAG já existe localmente."
+            exit 0
+          fi
+
+          if git ls-remote --tags origin | grep "$TAG"; then
+            echo "⚠️ Tag $TAG já existe remotamente."
+            exit 0
+          fi
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          
+          echo "✅ Tag $TAG criada com sucesso!"
