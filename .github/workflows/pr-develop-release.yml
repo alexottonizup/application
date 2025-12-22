@@ -20,62 +20,38 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
 
-      # ✅ ADICIONAR: Configurar identidade Git
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          echo "✅ Git configurado:"
-          git config --list | grep user
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install semantic-release
-        run: |
-          npm install -g semantic-release @semantic-release/git @semantic-release/github
-
-      - name: Get next version
+      - name: Get next release version and update .version
         id: version
         run: |
-          NEXT_VERSION=$(npx semantic-release --dry-run --no-ci | grep "next release version is" | awk '{print $NF}')
-          
-          if [ -z "$NEXT_VERSION" ]; then
-            NEXT_VERSION="1.0.0"
+          if [ -f ".version" ]; then
+            BASE_VERSION=$(cat .version | sed 's/-.*//')
+          else
+            BASE_VERSION="1.0.0"
           fi
-          
-          echo "version=${NEXT_VERSION}-RELEASE" >> $GITHUB_OUTPUT
-          echo "📦 Versão Release: ${NEXT_VERSION}-RELEASE"
 
-      - name: Create Release Branch
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          # Mantém a versão, só troca o sufixo para RELEASE
+          RELEASE_VERSION="$MAJOR.$MINOR.$PATCH-RELEASE"
+
+          echo "$RELEASE_VERSION" > .version
+          echo "version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release Branch and commit .version
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           RELEASE_BRANCH="release/$VERSION"
           
-          echo "🔄 Criando branch: $RELEASE_BRANCH"
-          
-          # Criar branch release
           git checkout -b "$RELEASE_BRANCH"
           
-          # Atualizar package.json se existir
-          if [ -f "package.json" ]; then
-            echo "📝 Atualizando package.json"
-            npm version "$VERSION" --no-git-tag-version
-            git add package.json
-            git commit -m "chore: bump version to $VERSION [skip ci]"
-          else
-            echo "⚠️ package.json não encontrado, criando commit vazio"
-            git commit --allow-empty -m "chore: create release branch $VERSION [skip ci]"
-          fi
+          git add .version
+          git commit -m "chore: bump version to $VERSION [skip ci]" || echo "No changes"
           
-          # Push da branch
           git push origin "$RELEASE_BRANCH"
-          
-          echo "✅ Branch $RELEASE_BRANCH criada com sucesso!"
 
       - name: Create Pull Request
         env:
@@ -84,30 +60,28 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           RELEASE_BRANCH="release/$VERSION"
           
-          # Verificar se PR já existe
           EXISTING_PR=$(gh pr list --head "$RELEASE_BRANCH" --base main --json number --jq '.[0].number')
           
           if [ -n "$EXISTING_PR" ]; then
             echo "✅ PR #$EXISTING_PR já existe"
             exit 0
           fi
-          
-          # Criar PR
+
           gh pr create \
             --base main \
             --head "$RELEASE_BRANCH" \
             --title "🚀 Release $VERSION" \
             --body "## 🚀 Release $VERSION
-          
-          **Branch:** \`$RELEASE_BRANCH\`  
-          **Target:** \`main\`
-          
-          ### 📋 Checklist
-          - [ ] Testes passando
-          - [ ] Documentação atualizada
-          - [ ] Changelog revisado
-          
-          ---
-          _PR criado automaticamente pelo workflow_"
+
+**Branch:** \`$RELEASE_BRANCH\`  
+**Target:** \`main\`
+
+### 📋 Checklist
+- [ ] Testes passando
+- [ ] Documentação atualizada
+- [ ] Changelog revisado
+
+---
+_PR criado automaticamente pelo workflow_"
           
           echo "✅ PR criado com sucesso!"
