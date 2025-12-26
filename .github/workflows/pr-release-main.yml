@@ -23,13 +23,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          EXISTING_PR=$(gh pr list --base main --head "${GITHUB_REF_NAME}" --state open --json number --jq '.[0].number')
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          EXISTING_PR=$(gh pr list --base main --head "$BRANCH_NAME" --state open --json number --jq '.[0].number')
           if [ -z "$EXISTING_PR" ]; then
             gh pr create \
               --base main \
-              --head "${GITHUB_REF_NAME}" \
-              --title "🚀 ${GITHUB_REF_NAME} → main" \
+              --head "$BRANCH_NAME" \
+              --title "🚀 $BRANCH_NAME → main" \
               --body "**PR automático da branch de release para main** 📦 **Versão:** \`${{ steps.version.outputs.version }}\`"
             echo "✅ PR criado com sucesso!"
           else
-            echo "⚠️ PR $EXISTING_PR já existe"
+            echo "⚠️ PR #$EXISTING_PR já existe"
+          fi
