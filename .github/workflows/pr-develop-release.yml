@@ -45,13 +45,15 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           RELEASE_BRANCH="release/$VERSION"
-          
-          git checkout -b "$RELEASE_BRANCH"
-          
-          git add .version
-          git commit -m "chore: bump version to $VERSION [skip ci]" || echo "No changes"
-          
-          git push origin "$RELEASE_BRANCH"
+          if git ls-remote --heads origin "$RELEASE_BRANCH" | grep "$RELEASE_BRANCH"; then
+            echo "Branch $RELEASE_BRANCH já existe remotamente."
+            git checkout "$RELEASE_BRANCH"
+          else
+            git checkout -b "$RELEASE_BRANCH"
+            git add .version
+            git commit -m "chore: bump version to $VERSION [skip ci]" || echo "No changes"
+            git push origin "$RELEASE_BRANCH"
+          fi
 
       - name: Create Pull Request
         env:
