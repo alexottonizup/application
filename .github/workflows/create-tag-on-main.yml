@@ -30,7 +30,16 @@ jobs:
           VERSION=$(cat .version | sed 's/-.*//')
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Get version from .version file (remove sufixo)
+        id: version
+        run: |
+          VERSION=$(cat .version | sed 's/-.*//')
+          SUFIXO=$(cat .version | grep -oP '(?<=-).*' || echo "")
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "sufixo=$SUFIXO" >> $GITHUB_OUTPUT
+
       - name: Create Tag and Push
+        if: steps.version.outputs.sufixo == 'RELEASE'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
