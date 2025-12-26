@@ -24,13 +24,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Get version from .version file (remove sufixo)
-        id: version
-        run: |
-          VERSION=$(cat .version | sed 's/-.*//')
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Get version from .version file (remove sufixo)
+      - name: Get version and sufixo from .version file
         id: version
         run: |
           VERSION=$(cat .version | sed 's/-.*//')
