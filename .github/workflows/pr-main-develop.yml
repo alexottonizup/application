@@ -1,16 +1,25 @@
-name: PR Main → Develop after Hotfix
+name: "PR Main → Develop after Hotfix"
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   pr-main-develop:
     runs-on: ubuntu-latest
+    # ✅ Só executa se:
+    # 1. PR foi mergeado
+    # 2. Branch de origem é hotfix/*
     if: |
-      !contains(github.event.head_commit.message, 'hotfix sync') &&
-      !contains(github.event.head_commit.message, 'chore(sync):')
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'hotfix/')
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,12 +43,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           EXISTING_PR=$(gh pr list --base develop --head main --state open --json number --jq '.[0].number')
+          
           if [ -z "$EXISTING_PR" ]; then
             gh pr create \
               --base develop \
               --head main \
               --title "develop ← main (hotfix sync)" \
-              --body "🔄 Sincronização automática após hotfix"
+              --body "🔄 Sincronização automática após hotfix \`${{ github.event.pull_request.head.ref }}\`"
             echo "✅ PR criado com sucesso!"
           else
             echo "⚠️ PR #$EXISTING_PR já existe"
