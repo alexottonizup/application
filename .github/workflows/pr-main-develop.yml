@@ -1,18 +1,35 @@
 name: PR Main → Develop after Hotfix
+
 on:
   push:
     branches:
       - main
+
 jobs:
   pr-main-develop:
     runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.head_commit.message, 'hotfix sync') &&
+      !contains(github.event.head_commit.message, 'chore(sync):')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
+
+      - name: Check if develop is behind main
+        id: diff
+        run: |
+          git fetch origin develop
+          if git diff --quiet origin/main origin/develop; then
+            echo "no_diff=true" >> $GITHUB_OUTPUT
+          else
+            echo "no_diff=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create PR Main → Develop
+        if: steps.diff.outputs.no_diff == 'false'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
