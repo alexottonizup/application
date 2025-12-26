@@ -32,4 +32,4 @@ jobs:
               --body "**PR automático da branch de release para main** 📦 **Versão:** \`${{ steps.version.outputs.version }}\`"
             echo "✅ PR criado com sucesso!"
           else
-            echo "⚠️ PR #$EXISTING_PR já existe"
+            echo "⚠️ PR $EXISTING_PR já existe"
