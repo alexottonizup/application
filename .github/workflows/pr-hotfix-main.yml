@@ -1,0 +1,23 @@
+name: PR Hotfix → Main
+on:
+  push:
+    branches:
+      - 'hotfix/**'
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "main ← $BRANCH_NAME (hotfix)" \
+            --body "🚑 Hotfix automático"
