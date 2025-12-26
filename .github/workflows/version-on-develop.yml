@@ -1,4 +1,4 @@
-name: Create SNAPSHOT Version on Develop
+name: "Create SNAPSHOT Version on Develop"
 
 on:
   pull_request:
@@ -12,12 +12,12 @@ permissions:
 
 jobs:
   create-snapshot-version:
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'feature/')
+    if: github.event.pull_request.merged == true && (startsWith(github.event.pull_request.head.ref, 'feature/') || startsWith(github.event.pull_request.head.ref, 'bugfix/'))
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout develop
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: develop
           fetch-depth: 0
@@ -28,9 +28,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Get next SNAPSHOT version and update .version
+      - name: Analyze merged commits and determine version bump
         id: version
         run: |
+          # Pega a versão base atual
           if [ -f ".version" ]; then
             BASE_VERSION=$(cat .version | sed 's/-.*//')
           else
@@ -38,12 +39,45 @@ jobs:
           fi
 
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
-          MINOR=$((MINOR+1))
-          NEXT_VERSION="$MAJOR.$MINOR.0-SNAPSHOT"
 
+          # Pega commits do PR que foi mergeado
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          COMMITS=$(gh pr view $PR_NUMBER --json commits --jq '.commits[].messageHeadline')
+
+          # Detecta tipo de bump
+          BUMP_TYPE="patch"
+          
+          if echo "$COMMITS" | grep -qE "^feat!:|BREAKING CHANGE:"; then
+            BUMP_TYPE="major"
+          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+            BUMP_TYPE="minor"
+          elif echo "$COMMITS" | grep -qE "^fix(\(.+\))?:"; then
+            BUMP_TYPE="patch"
+          fi
+
+          # Aplica o bump
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR+1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR+1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH+1))
+              ;;
+          esac
+
+          NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
           echo "$NEXT_VERSION" > .version
           echo "snapshot_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Next SNAPSHOT version: $NEXT_VERSION"
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "📦 Next SNAPSHOT version: $NEXT_VERSION (bump: $BUMP_TYPE)"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Commit .version to develop
         run: |
@@ -56,5 +90,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           SNAPSHOT_VERSION="${{ steps.version.outputs.snapshot_version }}"
+          BUMP_TYPE="${{ steps.version.outputs.bump_type }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          gh pr comment "$PR_NUMBER" --body "✅ **Versão SNAPSHOT criada:** \`$SNAPSHOT_VERSION\`"
+          gh pr comment "$PR_NUMBER" --body "✅ **Versão SNAPSHOT criada:** \`$SNAPSHOT_VERSION\` (bump: **$BUMP_TYPE**)"
